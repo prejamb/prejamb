@@ -52,6 +52,8 @@ export type ExamResult = {
   topicBreakdown: Record<string, TopicScore>;
   /** False when the attempt was graded but not persisted (e.g. guest user). */
   saved: boolean;
+  /** Primary key of the saved attempt; null for guest attempts. */
+  attemptId: string | null;
   message?: string;
   /** Set client-side when the timer expired. */
   timedOut: boolean;

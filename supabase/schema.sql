@@ -148,6 +148,27 @@ create table if not exists public.exam_attempts (
 comment on table  public.exam_attempts                 is 'Completed exam attempts, owned by auth.users.';
 comment on column public.exam_attempts.topic_breakdown is 'JSONB map: {"<topic_id>": {"correct": n, "total": m}}.';
 
+-- ---------------------------------------------------------------------------
+-- exam_attempt_answers — one row per question in an attempt.
+-- Written by the server at submission time; drives the diagnostic report.
+-- ---------------------------------------------------------------------------
+create table if not exists public.exam_attempt_answers (
+  attempt_id      uuid not null references public.exam_attempts (id) on delete cascade,
+  question_id     uuid not null references public.questions (id) on delete cascade,
+  position        smallint not null,
+  selected_option text,
+  is_correct      boolean not null,
+
+  primary key (attempt_id, question_id),
+  constraint exam_attempt_answers_position_non_negative check (position >= 0),
+  constraint exam_attempt_answers_selected_option_valid
+    check (selected_option is null or selected_option in ('A', 'B', 'C', 'D'))
+);
+
+comment on table  public.exam_attempt_answers                 is 'One row per question in an attempt.';
+comment on column public.exam_attempt_answers.selected_option is 'NULL when the question was left unanswered.';
+comment on column public.exam_attempt_answers.position        is 'Question order in the paper (0-based).';
+
 
 -- ============================================================================
 -- 3. Indexes
@@ -161,6 +182,9 @@ create index if not exists questions_topic_id_idx
 create index if not exists exam_attempts_user_created_idx
   on public.exam_attempts (user_id, created_at desc);
 
+create index if not exists exam_attempt_answers_question_idx
+  on public.exam_attempt_answers (question_id);
+
 
 -- ============================================================================
 -- 4. Row Level Security
@@ -169,6 +193,7 @@ alter table public.subjects      enable row level security;
 alter table public.topics        enable row level security;
 alter table public.questions     enable row level security;
 alter table public.exam_attempts enable row level security;
+alter table public.exam_attempt_answers enable row level security;
 
 -- --- Content tables: public read, write only via service_role --------------
 drop policy if exists "subjects are publicly readable" on public.subjects;
@@ -235,6 +260,12 @@ create policy "users can delete their own attempts"
 
 grant select, insert, update, delete on public.exam_attempts to authenticated;
 grant all on public.exam_attempts to service_role;
+
+-- --- exam_attempt_answers: server-only ------------------------------------
+-- No policies on purpose. Candidates read their review through the server
+-- route, which verifies ownership of the parent attempt first.
+revoke all on public.exam_attempt_answers from anon, authenticated;
+grant all  on public.exam_attempt_answers to service_role;
 
 
 -- ============================================================================

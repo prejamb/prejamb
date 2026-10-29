@@ -184,24 +184,60 @@ export async function POST(request: Request) {
   const percentage = Math.round((score / totalQuestions) * 100);
 
   let saved = false;
+  let attemptId: string | null = null;
   let message: string | undefined;
 
   if (user) {
-    const { error: insertError } = await admin.from("exam_attempts").insert({
-      user_id: user.id,
-      score,
-      total_questions: totalQuestions,
-      time_spent_seconds: timeSpentSeconds,
-      topic_breakdown: topicBreakdown,
-    });
+    const { data: attemptRow, error: attemptError } = await admin
+      .from("exam_attempts")
+      .insert({
+        user_id: user.id,
+        score,
+        total_questions: totalQuestions,
+        time_spent_seconds: timeSpentSeconds,
+        topic_breakdown: topicBreakdown,
+      })
+      .select("id")
+      .single();
 
-    if (insertError) {
+    if (attemptError || !attemptRow) {
       // Never discard a graded result just because persistence failed.
-      console.error("Failed to save exam attempt", insertError);
+      console.error("Failed to save exam attempt", attemptError);
       message =
         "Your score was graded but could not be saved. Please try again later.";
     } else {
+      const newAttemptId = attemptRow.id as string;
+      attemptId = newAttemptId;
       saved = true;
+
+      // Snapshot what the candidate picked so the diagnostic report can show
+      // a question-by-question review. Unanswered questions are stored with a
+      // null selection rather than omitted.
+      const answerRows = gradedIds.map((questionId, index) => {
+        const question = questionById.get(questionId);
+        const selectedOption = answers[questionId] ?? null;
+
+        return {
+          attempt_id: newAttemptId,
+          question_id: questionId,
+          position: index,
+          selected_option: selectedOption,
+          is_correct: Boolean(
+            question && selectedOption === question.correct_option,
+          ),
+        };
+      });
+
+      const { error: answersError } = await admin
+        .from("exam_attempt_answers")
+        .insert(answerRows);
+
+      if (answersError) {
+        // The score is still valid and saved; only the deep review is missing.
+        console.error("Failed to save attempt answers", answersError);
+        message =
+          "Your score was saved, but the detailed review could not be stored.";
+      }
     }
   } else {
     message = "Sign in to save your score and track your progress.";
@@ -215,6 +251,7 @@ export async function POST(request: Request) {
       timeSpentSeconds,
       topicBreakdown,
       saved,
+      attemptId,
       ...(message ? { message } : {}),
     },
   });

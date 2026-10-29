@@ -2,6 +2,7 @@
 
 import {
   AlertTriangle,
+  ArrowRight,
   CheckCircle2,
   LayoutGrid,
   Loader2,
@@ -15,6 +16,7 @@ import {
   loadExamSnapshot,
   saveExamSnapshot,
 } from "@/lib/exam/storage";
+import { formatDuration } from "@/lib/exam/format";
 import {
   EXAM_DURATION_SECONDS,
   EXAM_SNAPSHOT_VERSION,
@@ -38,6 +40,12 @@ type ExamRunnerProps = {
   sessionId: string;
   candidateName: string;
   isAuthenticated: boolean;
+  /**
+   * localStorage key used while the candidate was a guest. If they sign in
+   * mid-exam the draft is adopted under the new user-scoped key, so their
+   * answers are not lost and the submission is linked to their account.
+   */
+  guestSessionId?: string;
 };
 
 type SubmitResponse = {
@@ -63,6 +71,7 @@ function isSubmitResponse(value: unknown): value is SubmitResponse {
     typeof body.percentage === "number" &&
     typeof body.timeSpentSeconds === "number" &&
     typeof body.saved === "boolean" &&
+    (body.attemptId === null || typeof body.attemptId === "string") &&
     typeof body.topicBreakdown === "object" &&
     body.topicBreakdown !== null
   );
@@ -81,28 +90,13 @@ function readErrorMessage(value: unknown, fallback: string): string {
   return fallback;
 }
 
-function formatDuration(totalSeconds: number): string {
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-
-  if (hours > 0) {
-    return `${hours}h ${minutes}m`;
-  }
-
-  if (minutes > 0) {
-    return `${minutes}m ${seconds}s`;
-  }
-
-  return `${seconds}s`;
-}
-
 export default function ExamRunner({
   subject,
   questions,
   sessionId,
   candidateName,
   isAuthenticated,
+  guestSessionId,
 }: ExamRunnerProps) {
   const [hydrated, setHydrated] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -154,9 +148,20 @@ export default function ExamRunner({
      external store" case, just spread over several state slices. */
   useEffect(() => {
     const now = Date.now();
-    const stored = loadExamSnapshot(sessionId, now);
+    const ownSnapshot = loadExamSnapshot(sessionId, now);
+    const guestSnapshot =
+      !ownSnapshot && guestSessionId && guestSessionId !== sessionId
+        ? loadExamSnapshot(guestSessionId, now)
+        : null;
+    const stored = ownSnapshot ?? guestSnapshot;
 
     if (stored) {
+      if (guestSnapshot && guestSessionId) {
+        // Signed in mid-exam: move the draft to the user-scoped key so the
+        // next autosave writes there and helps avoid a stale guest copy.
+        clearExamSnapshot(guestSessionId);
+      }
+
       setAnswers(stored.answers);
       setFlagged(stored.flagged);
       setCurrentIndex(
@@ -170,7 +175,7 @@ export default function ExamRunner({
     }
 
     setHydrated(true);
-  }, [sessionId, questions.length]);
+  }, [guestSessionId, sessionId, questions.length]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   /* ---------------------------------------------------------------------- */
@@ -431,9 +436,19 @@ export default function ExamRunner({
               {candidateName}
             </span>
             {!isAuthenticated ? (
-              <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
-                Guest
-              </span>
+              <>
+                <span className="ml-2 rounded bg-amber-100 px-1.5 py-0.5 text-[10px] font-semibold text-amber-800">
+                  Guest
+                </span>
+                <Link
+                  href={`/login?next=${encodeURIComponent(
+                    `/exam/session?subject=${subject.code}`,
+                  )}`}
+                  className="ml-2 font-semibold text-[#4B1D6F] underline-offset-2 hover:underline"
+                >
+                  Sign in to save
+                </Link>
+              </>
             ) : null}
           </p>
           <p className="tabular-nums">
@@ -850,6 +865,16 @@ function ResultScreen({
               })}
             </ul>
           </section>
+        ) : null}
+
+        {result.attemptId ? (
+          <Link
+            href={`/exam/results/${result.attemptId}`}
+            className="inline-flex items-center justify-center gap-2 rounded-md bg-[#4B1D6F] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#3d175b]"
+          >
+            View full diagnostic report
+            <ArrowRight className="size-4" aria-hidden="true" />
+          </Link>
         ) : null}
 
         <div className="flex flex-col gap-2 sm:flex-row">

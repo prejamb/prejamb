@@ -35,16 +35,32 @@ export async function proxy(request: NextRequest) {
 
   // Revalidate the token with Supabase Auth on every request. Use getUser(),
   // not getSession(): the latter only decodes the cookie and does not verify it.
-  await supabase.auth.getUser();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
 
-  // Add route guards here, e.g.:
-  //   const { data: { user } } = await supabase.auth.getUser();
-  //   if (!user && request.nextUrl.pathname.startsWith("/dashboard")) {
-  //     const redirectUrl = request.nextUrl.clone();
-  //     redirectUrl.pathname = "/login";
-  //     redirectUrl.searchParams.set("next", request.nextUrl.pathname);
-  //     return NextResponse.redirect(redirectUrl);
-  //   }
+  // Results history and individual reports belong to a candidate. The pages
+  // also check the session, but redirecting here avoids rendering them at all.
+  const { pathname, search } = request.nextUrl;
+  const isProtected =
+    pathname === "/exam/results" || pathname.startsWith("/exam/results/");
+
+  if (!user && isProtected) {
+    const redirectUrl = request.nextUrl.clone();
+    redirectUrl.pathname = "/login";
+    redirectUrl.search = "";
+    redirectUrl.searchParams.set("next", `${pathname}${search}`);
+
+    const redirectResponse = NextResponse.redirect(redirectUrl);
+
+    // A redirect response is a fresh object: carry over any cookies that the
+    // Supabase client refreshed above, otherwise the new session is lost.
+    for (const cookie of response.cookies.getAll()) {
+      redirectResponse.cookies.set(cookie);
+    }
+
+    return redirectResponse;
+  }
 
   return response;
 }

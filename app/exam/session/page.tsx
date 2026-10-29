@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { connection } from "next/server";
 import { Suspense } from "react";
 
 import ExamRunner, { ExamSkeleton } from "@/components/exam/ExamRunner";
@@ -48,6 +49,8 @@ export default function ExamSessionPage({ searchParams }: PageProps) {
 }
 
 async function ExamSession({ searchParams }: PageProps) {
+  await connection();
+
   const { subject: requestedCode } = await searchParams;
 
   const supabase = await createClient();
@@ -202,6 +205,7 @@ async function ExamSession({ searchParams }: PageProps) {
       subject={{ id: subject.id, name: subject.name, code: subject.code }}
       questions={questions}
       sessionId={sessionId}
+      guestSessionId={`${subject.code}:guest`}
       candidateName={candidateName}
       isAuthenticated={Boolean(user)}
     />
