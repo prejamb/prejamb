@@ -1,0 +1,221 @@
+import { NextResponse } from "next/server";
+
+import { EXAM_DURATION_SECONDS, isOptionLabel } from "@/lib/exam/types";
+import { createAdminClient } from "@/lib/supabase/admin";
+import { createClient } from "@/lib/supabase/server";
+
+const MAX_QUESTIONS = 200;
+
+const UUID_PATTERN =
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+type QuestionRow = {
+  id: string;
+  topic_id: string;
+  correct_option: string;
+};
+
+type TopicScore = { correct: number; total: number };
+
+function badRequest(message: string) {
+  return NextResponse.json({ error: message }, { status: 400 });
+}
+
+/**
+ * Grades a submitted exam and persists the attempt.
+ *
+ * The client only ever sends question ids and chosen labels — the answer key
+ * is read here with the service-role client, which is the only role allowed to
+ * see `questions.correct_option` (see supabase/schema.sql). A tampered payload
+ * can therefore only change which options were chosen, never the score.
+ *
+ * Guests are graded too, but the attempt is not written, so the practice mode
+ * works before auth screens land.
+ */
+export async function POST(request: Request) {
+  let payload: unknown;
+
+  try {
+    payload = await request.json();
+  } catch {
+    return badRequest("Invalid JSON body.");
+  }
+
+  if (typeof payload !== "object" || payload === null) {
+    return badRequest("Invalid request body.");
+  }
+
+  const body = payload as Record<string, unknown>;
+
+  const subjectId =
+    typeof body.subjectId === "string" ? body.subjectId : "";
+
+  if (!UUID_PATTERN.test(subjectId)) {
+    return badRequest("A valid subjectId is required.");
+  }
+
+  const rawQuestionIds = Array.isArray(body.questionIds)
+    ? body.questionIds.filter(
+        (id): id is string => typeof id === "string" && UUID_PATTERN.test(id),
+      )
+    : [];
+
+  const questionIds = [...new Set(rawQuestionIds)].slice(0, MAX_QUESTIONS);
+
+  if (questionIds.length === 0) {
+    return badRequest("No valid questions were submitted.");
+  }
+
+  const rawAnswers =
+    typeof body.answers === "object" && body.answers !== null
+      ? (body.answers as Record<string, unknown>)
+      : {};
+
+  const answers: Record<string, string> = {};
+
+  for (const questionId of questionIds) {
+    const label = rawAnswers[questionId];
+
+    if (isOptionLabel(label)) {
+      answers[questionId] = label;
+    }
+  }
+
+  const rawTime =
+    typeof body.timeSpentSeconds === "number" &&
+    Number.isFinite(body.timeSpentSeconds)
+      ? body.timeSpentSeconds
+      : 0;
+
+  const timeSpentSeconds = Math.min(
+    EXAM_DURATION_SECONDS,
+    Math.max(0, Math.round(rawTime)),
+  );
+
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  let admin: ReturnType<typeof createAdminClient>;
+
+  try {
+    admin = createAdminClient();
+  } catch (cause) {
+    console.error("Exam grading is not configured", cause);
+
+    return NextResponse.json(
+      { error: "Exam submission is not configured on the server." },
+      { status: 500 },
+    );
+  }
+
+  // Restrict grading to questions that really belong to the requested subject,
+  // so a crafted payload cannot mix in questions from other papers.
+  const { data: topicRows, error: topicsError } = await admin
+    .from("topics")
+    .select("id")
+    .eq("subject_id", subjectId);
+
+  if (topicsError) {
+    console.error("Failed to load topics for grading", topicsError);
+
+    return NextResponse.json(
+      { error: "Could not grade this exam. Please try again." },
+      { status: 500 },
+    );
+  }
+
+  const topicIds = (topicRows ?? []).map((topic) => topic.id as string);
+
+  if (topicIds.length === 0) {
+    return badRequest("Unknown subject.");
+  }
+
+  const { data: questionRows, error: questionsError } = await admin
+    .from("questions")
+    .select("id, topic_id, correct_option")
+    .in("id", questionIds)
+    .in("topic_id", topicIds);
+
+  if (questionsError) {
+    console.error("Failed to load answer key", questionsError);
+
+    return NextResponse.json(
+      { error: "Could not grade this exam. Please try again." },
+      { status: 500 },
+    );
+  }
+
+  const questionById = new Map<string, QuestionRow>(
+    ((questionRows ?? []) as QuestionRow[]).map((row) => [row.id, row]),
+  );
+
+  const gradedIds = questionIds.filter((id) => questionById.has(id));
+
+  if (gradedIds.length === 0) {
+    return badRequest("None of the submitted questions belong to this subject.");
+  }
+
+  let score = 0;
+  const topicBreakdown: Record<string, TopicScore> = {};
+
+  for (const questionId of gradedIds) {
+    const question = questionById.get(questionId);
+
+    if (!question) {
+      continue;
+    }
+
+    const stats = (topicBreakdown[question.topic_id] ??= {
+      correct: 0,
+      total: 0,
+    });
+
+    stats.total += 1;
+
+    if (answers[questionId] === question.correct_option) {
+      stats.correct += 1;
+      score += 1;
+    }
+  }
+
+  const totalQuestions = gradedIds.length;
+  const percentage = Math.round((score / totalQuestions) * 100);
+
+  let saved = false;
+  let message: string | undefined;
+
+  if (user) {
+    const { error: insertError } = await admin.from("exam_attempts").insert({
+      user_id: user.id,
+      score,
+      total_questions: totalQuestions,
+      time_spent_seconds: timeSpentSeconds,
+      topic_breakdown: topicBreakdown,
+    });
+
+    if (insertError) {
+      // Never discard a graded result just because persistence failed.
+      console.error("Failed to save exam attempt", insertError);
+      message =
+        "Your score was graded but could not be saved. Please try again later.";
+    } else {
+      saved = true;
+    }
+  } else {
+    message = "Sign in to save your score and track your progress.";
+  }
+
+  return NextResponse.json({
+    result: {
+      score,
+      totalQuestions,
+      percentage,
+      timeSpentSeconds,
+      topicBreakdown,
+      saved,
+      ...(message ? { message } : {}),
+    },
+  });
+}
