@@ -3,6 +3,7 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { Suspense } from "react";
 
 import Navbar from "@/components/Navbar";
+import OfflineSyncBootstrap from "@/components/OfflineSyncBootstrap";
 import "./globals.css";
 
 const geistSans = Geist({
@@ -28,6 +29,8 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="flex min-h-full flex-col">
+        <OfflineSyncBootstrap />
+
         {/* `cookies()` inside Navbar is dynamic; Cache Components requires it
             to stream so pages can still prerender their static shell. */}
         <Suspense

@@ -4,13 +4,25 @@ import {
   AlertTriangle,
   ArrowRight,
   CheckCircle2,
+  CloudOff,
   LayoutGrid,
   Loader2,
+  RefreshCw,
   RotateCcw,
+  WifiOff,
 } from "lucide-react";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
+import {
+  cacheQuestionSet,
+  clearExamProgress,
+  enqueueAttempt,
+  getQuestionSetCacheKey,
+  loadExamProgress,
+  saveExamProgress,
+  type QueuedAttempt,
+} from "@/lib/db/indexeddb";
 import {
   clearExamSnapshot,
   loadExamSnapshot,
@@ -19,14 +31,18 @@ import {
 import { formatDuration } from "@/lib/exam/format";
 import {
   EXAM_DURATION_SECONDS,
+  EXAM_MAX_RESUME_AGE_MS,
   EXAM_SNAPSHOT_VERSION,
   type AnswerMap,
   type ExamQuestion,
   type ExamResult,
   type ExamSnapshot,
+  type ExamSubmitPayload,
   type FlaggedMap,
   type OptionLabel,
 } from "@/lib/exam/types";
+import { useNetworkStatus } from "@/lib/hooks/useNetworkStatus";
+import { flushSyncQueue, onSyncComplete } from "@/lib/services/syncService";
 import { cn } from "@/lib/utils";
 
 import QuestionCard from "./QuestionCard";
@@ -50,6 +66,11 @@ type ExamRunnerProps = {
 
 type SubmitResponse = {
   result: Omit<ExamResult, "timedOut">;
+};
+
+type PendingSubmission = {
+  attempt: QueuedAttempt;
+  timedOut: boolean;
 };
 
 function isSubmitResponse(value: unknown): value is SubmitResponse {
@@ -98,6 +119,8 @@ export default function ExamRunner({
   isAuthenticated,
   guestSessionId,
 }: ExamRunnerProps) {
+  const { online } = useNetworkStatus();
+
   const [hydrated, setHydrated] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
   const [answers, setAnswers] = useState<AnswerMap>({});
@@ -107,6 +130,7 @@ export default function ExamRunner({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [timeExpired, setTimeExpired] = useState(false);
   const [result, setResult] = useState<ExamResult | null>(null);
+  const [pendingSync, setPendingSync] = useState<PendingSubmission | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [paletteOpen, setPaletteOpen] = useState(false);
@@ -140,43 +164,93 @@ export default function ExamRunner({
   const unansweredCount = questions.length - answeredCount;
 
   /* ---------------------------------------------------------------------- */
-  /* Restore or start the session                                           */
+  /* Cache the downloaded paper for offline reuse                          */
   /* ---------------------------------------------------------------------- */
-  /* eslint-disable react-hooks/set-state-in-effect -- This runs once after
-     mount on purpose: localStorage is unavailable during SSR, and reading it
-     during render would break hydration. It is the standard "sync from an
-     external store" case, just spread over several state slices. */
   useEffect(() => {
-    const now = Date.now();
-    const ownSnapshot = loadExamSnapshot(sessionId, now);
-    const guestSnapshot =
-      !ownSnapshot && guestSessionId && guestSessionId !== sessionId
-        ? loadExamSnapshot(guestSessionId, now)
-        : null;
-    const stored = ownSnapshot ?? guestSnapshot;
-
-    if (stored) {
-      if (guestSnapshot && guestSessionId) {
-        // Signed in mid-exam: move the draft to the user-scoped key so the
-        // next autosave writes there and helps avoid a stale guest copy.
-        clearExamSnapshot(guestSessionId);
-      }
-
-      setAnswers(stored.answers);
-      setFlagged(stored.flagged);
-      setCurrentIndex(
-        Math.min(Math.max(0, stored.currentIndex), questions.length - 1),
-      );
-      setStartedAt(stored.startedAt);
-      setDeadline(stored.deadline);
-    } else {
-      setStartedAt(now);
-      setDeadline(now + EXAM_DURATION_SECONDS * 1000);
+    if (questions.length === 0) {
+      return;
     }
 
-    setHydrated(true);
+    void cacheQuestionSet({
+      cacheKey: getQuestionSetCacheKey(subject.code),
+      subject,
+      questions,
+      fetchedAt: Date.now(),
+    });
+  }, [questions, subject]);
+
+  /* ---------------------------------------------------------------------- */
+  /* Restore or start the session                                           */
+  /* ---------------------------------------------------------------------- */
+  // Runs once after mount: localStorage and IndexedDB are unavailable during
+  // SSR, and reading them during render would break hydration.
+  useEffect(() => {
+    let cancelled = false;
+
+    (async () => {
+      const now = Date.now();
+      const ownSnapshot = loadExamSnapshot(sessionId, now);
+      const guestSnapshot =
+        !ownSnapshot && guestSessionId && guestSessionId !== sessionId
+          ? loadExamSnapshot(guestSessionId, now)
+          : null;
+
+      let stored: ExamSnapshot | null = ownSnapshot ?? guestSnapshot;
+
+      // localStorage can be cleared (private browsing, quota). Fall back to the
+      // IndexedDB progress mirror before starting a fresh paper.
+      if (!stored) {
+        const fromIndexedDB = await loadExamProgress(sessionId).catch(
+          () => null,
+        );
+
+        if (
+          fromIndexedDB &&
+          now - fromIndexedDB.startedAt >= 0 &&
+          now - fromIndexedDB.startedAt < EXAM_MAX_RESUME_AGE_MS
+        ) {
+          stored = {
+            version: EXAM_SNAPSHOT_VERSION,
+            sessionId,
+            startedAt: fromIndexedDB.startedAt,
+            deadline: fromIndexedDB.deadline,
+            currentIndex: fromIndexedDB.currentIndex,
+            answers: fromIndexedDB.answers,
+            flagged: fromIndexedDB.flagged,
+          };
+        }
+      }
+
+      if (cancelled) {
+        return;
+      }
+
+      if (stored) {
+        if (guestSnapshot && guestSessionId) {
+          // Signed in mid-exam: move the draft to the user-scoped key so the
+          // next autosave writes there and helps avoid a stale guest copy.
+          clearExamSnapshot(guestSessionId);
+        }
+
+        setAnswers(stored.answers);
+        setFlagged(stored.flagged);
+        setCurrentIndex(
+          Math.min(Math.max(0, stored.currentIndex), questions.length - 1),
+        );
+        setStartedAt(stored.startedAt);
+        setDeadline(stored.deadline);
+      } else {
+        setStartedAt(now);
+        setDeadline(now + EXAM_DURATION_SECONDS * 1000);
+      }
+
+      setHydrated(true);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
   }, [guestSessionId, sessionId, questions.length]);
-  /* eslint-enable react-hooks/set-state-in-effect */
 
   /* ---------------------------------------------------------------------- */
   /* Persist every change                                                   */
@@ -198,6 +272,15 @@ export default function ExamRunner({
 
     const timeoutId = window.setTimeout(() => {
       saveExamSnapshot(snapshot);
+      void saveExamProgress({
+        sessionId,
+        answers,
+        flagged,
+        currentIndex,
+        startedAt,
+        deadline,
+        updatedAt: Date.now(),
+      });
     }, 200);
 
     return () => window.clearTimeout(timeoutId);
@@ -216,7 +299,7 @@ export default function ExamRunner({
   /* Guard against accidental navigation mid-exam                           */
   /* ---------------------------------------------------------------------- */
   useEffect(() => {
-    if (!hydrated || result) {
+    if (!hydrated || result || pendingSync) {
       return;
     }
 
@@ -228,7 +311,7 @@ export default function ExamRunner({
     window.addEventListener("beforeunload", handleBeforeUnload);
 
     return () => window.removeEventListener("beforeunload", handleBeforeUnload);
-  }, [hydrated, result]);
+  }, [hydrated, result, pendingSync]);
 
   useEffect(() => {
     if (!confirmOpen) {
@@ -249,6 +332,29 @@ export default function ExamRunner({
   /* ---------------------------------------------------------------------- */
   /* Submission                                                             */
   /* ---------------------------------------------------------------------- */
+  const queueSubmission = useCallback(
+    async (payload: ExamSubmitPayload, reason: "manual" | "timeout") => {
+      try {
+        const attempt = await enqueueAttempt(payload);
+
+        clearExamSnapshot(sessionId);
+        void clearExamProgress(sessionId);
+
+        setPendingSync({ attempt, timedOut: reason === "timeout" });
+      } catch (cause) {
+        console.error("Failed to queue offline attempt", cause);
+        setError(
+          "We could not save your exam for offline sync. Please try again.",
+        );
+
+        if (reason === "timeout") {
+          setTimeExpired(true);
+        }
+      }
+    },
+    [sessionId],
+  );
+
   const submitExam = useCallback(
     async (reason: "manual" | "timeout") => {
       if (submittingRef.current) {
@@ -270,53 +376,71 @@ export default function ExamRunner({
         Math.max(0, elapsed),
       );
 
+      const payload: ExamSubmitPayload = {
+        subjectId: subject.id,
+        questionIds,
+        answers,
+        timeSpentSeconds,
+      };
+
+      // No connection (or a stale "online" flag): save locally for later sync.
+      if (!online) {
+        await queueSubmission(payload, reason);
+        setIsSubmitting(false);
+        submittingRef.current = false;
+        return;
+      }
+
       try {
         const response = await fetch("/api/exam/submit", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            subjectId: subject.id,
-            questionIds,
-            answers,
-            timeSpentSeconds,
-          }),
+          body: JSON.stringify(payload),
         });
 
-        const payload: unknown = await response.json().catch(() => null);
+        const responsePayload: unknown = await response
+          .json()
+          .catch(() => null);
 
         if (!response.ok) {
           throw new Error(
-            readErrorMessage(payload, "We could not submit your exam."),
+            readErrorMessage(responsePayload, "We could not submit your exam."),
           );
         }
 
-        if (!isSubmitResponse(payload)) {
+        if (!isSubmitResponse(responsePayload)) {
           throw new Error("The server returned an unexpected response.");
         }
 
         setResult({
-          ...payload.result,
+          ...responsePayload.result,
           timedOut: reason === "timeout",
         });
 
         // The attempt is safely stored server-side; drop the local draft.
         clearExamSnapshot(sessionId);
+        void clearExamProgress(sessionId);
       } catch (cause) {
-        setError(
-          cause instanceof Error
-            ? cause.message
-            : "We could not submit your exam. Please try again.",
-        );
+        // fetch rejects with a TypeError when the socket is unreachable.
+        if (cause instanceof TypeError || !navigator.onLine) {
+          await queueSubmission(payload, reason);
+        } else {
+          setError(
+            cause instanceof Error
+              ? cause.message
+              : "We could not submit your exam. Please try again.",
+          );
 
-        if (reason === "timeout") {
-          setTimeExpired(true);
+          if (reason === "timeout") {
+            setTimeExpired(true);
+          }
         }
       } finally {
         setIsSubmitting(false);
         submittingRef.current = false;
       }
     },
-    [answers, questionIds, sessionId, startedAt, subject.id],
+    [answers, online, questionIds, queueSubmission, sessionId, startedAt, subject.id],
   );
 
   const handleTimeUp = useCallback(() => {
@@ -394,6 +518,17 @@ export default function ExamRunner({
     );
   }
 
+  if (pendingSync) {
+    return (
+      <QueuedScreen
+        pending={pendingSync}
+        subject={subject}
+        candidateName={candidateName}
+        isAuthenticated={isAuthenticated}
+      />
+    );
+  }
+
   if (!currentQuestion) {
     return null;
   }
@@ -449,6 +584,12 @@ export default function ExamRunner({
                   Sign in to save
                 </Link>
               </>
+            ) : null}
+            {!online ? (
+              <span className="ml-2 inline-flex items-center gap-1 rounded bg-slate-200 px-1.5 py-0.5 text-[10px] font-semibold text-slate-700">
+                <WifiOff className="size-3" aria-hidden="true" />
+                Offline
+              </span>
             ) : null}
           </p>
           <p className="tabular-nums">
@@ -692,6 +833,168 @@ export function ExamSkeleton() {
         <div className="h-[420px] animate-pulse rounded-xl border border-slate-200 bg-white" />
         <div className="hidden h-72 animate-pulse rounded-xl border border-slate-200 bg-white lg:block" />
       </div>
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Offline queued screen                                                      */
+/* -------------------------------------------------------------------------- */
+function QueuedScreen({
+  pending,
+  subject,
+  candidateName,
+  isAuthenticated,
+}: {
+  pending: PendingSubmission;
+  subject: { id: string; name: string; code: string };
+  candidateName: string;
+  isAuthenticated: boolean;
+}) {
+  const { online } = useNetworkStatus();
+  const [synced, setSynced] = useState(false);
+  const [syncing, setSyncing] = useState(false);
+
+  useEffect(() => {
+    const unsubscribe = onSyncComplete((syncResult) => {
+      if (syncResult.synced > 0) {
+        setSynced(true);
+      }
+    });
+
+    return unsubscribe;
+  }, []);
+
+  const syncNow = async () => {
+    setSyncing(true);
+
+    try {
+      await flushSyncQueue();
+      setSynced(true);
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  const questionCount = pending.attempt.payload.questionIds.length;
+  const timeSpent = pending.attempt.payload.timeSpentSeconds;
+
+  return (
+    <div className="min-h-dvh bg-slate-100 text-slate-900">
+      <header className="bg-[#4B1D6F] px-4 py-6 text-white sm:px-6">
+        <div className="mx-auto max-w-3xl">
+          <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-white/60">
+            PreJamb &middot; CBT Result
+          </p>
+          <h1 className="mt-1 text-xl font-semibold">{subject.name}</h1>
+          <p className="text-sm text-white/70">
+            Candidate: {candidateName} &middot; {subject.code}
+          </p>
+        </div>
+      </header>
+
+      <main className="mx-auto max-w-3xl space-y-4 px-4 py-6 sm:px-6">
+        {pending.timedOut ? (
+          <div className="flex items-start gap-2 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900">
+            <AlertTriangle
+              className="mt-0.5 size-4 shrink-0"
+              aria-hidden="true"
+            />
+            <p>Time up. Your answers were saved when the timer reached zero.</p>
+          </div>
+        ) : null}
+
+        <section className="rounded-xl border border-slate-200 bg-white p-6 text-center shadow-sm">
+          {synced ? (
+            <CheckCircle2
+              className="mx-auto size-8 text-emerald-600"
+              aria-hidden="true"
+            />
+          ) : (
+            <CloudOff
+              className="mx-auto size-8 text-slate-400"
+              aria-hidden="true"
+            />
+          )}
+
+          <h2 className="mt-3 text-base font-semibold text-slate-900">
+            {synced ? "Submitted" : "Saved offline"}
+          </h2>
+          <p className="mx-auto mt-1 max-w-sm text-sm leading-6 text-slate-600">
+            {synced
+              ? "Your exam has been submitted and graded. Check My Results to review it."
+              : "Your exam is saved on this device and will be submitted automatically once you are back online."}
+          </p>
+
+          <dl className="mt-4 grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
+            <div className="rounded-lg bg-slate-50 px-3 py-2">
+              <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                Questions
+              </dt>
+              <dd className="text-base font-bold tabular-nums text-slate-900">
+                {questionCount}
+              </dd>
+            </div>
+            <div className="rounded-lg bg-slate-50 px-3 py-2">
+              <dt className="text-[10px] font-semibold uppercase tracking-wide text-slate-500">
+                Time used
+              </dt>
+              <dd className="text-base font-bold tabular-nums text-slate-900">
+                {formatDuration(timeSpent)}
+              </dd>
+            </div>
+          </dl>
+        </section>
+
+        <div className="flex flex-col gap-2">
+          {synced ? (
+            isAuthenticated ? (
+              <Link
+                href="/exam/results"
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-[#0B7A3B] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#096430]"
+              >
+                View my results
+                <ArrowRight className="size-4" aria-hidden="true" />
+              </Link>
+            ) : (
+              <Link
+                href="/login"
+                className="inline-flex items-center justify-center gap-2 rounded-md bg-[#0B7A3B] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#096430]"
+              >
+                Sign in to track results
+                <ArrowRight className="size-4" aria-hidden="true" />
+              </Link>
+            )
+          ) : online ? (
+            <button
+              type="button"
+              onClick={syncNow}
+              disabled={syncing}
+              className="inline-flex items-center justify-center gap-2 rounded-md bg-[#4B1D6F] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#3d175b] disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {syncing ? (
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+              ) : (
+                <RefreshCw className="size-4" aria-hidden="true" />
+              )}
+              {syncing ? "Syncing…" : "Sync now"}
+            </button>
+          ) : (
+            <p className="inline-flex items-center justify-center gap-2 rounded-md border border-amber-200 bg-amber-50 px-4 py-2.5 text-xs font-medium text-amber-800">
+              <WifiOff className="size-4" aria-hidden="true" />
+              Offline — your attempt will sync automatically when you
+              reconnect.
+            </p>
+          )}
+
+          <Link
+            href="/"
+            className="inline-flex items-center justify-center rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+          >
+            Back to home
+          </Link>
+        </div>
+      </main>
     </div>
   );
 }

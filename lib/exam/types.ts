@@ -39,6 +39,17 @@ export type AnswerMap = Partial<Record<string, OptionLabel>>;
 /** Only flagged questions are stored, so `flagged[id] === true` means flagged. */
 export type FlaggedMap = Record<string, boolean>;
 
+/**
+ * Body sent to `POST /api/exam/submit`. The offline sync queue stores this
+ * exact shape so queued attempts can be replayed verbatim when online.
+ */
+export type ExamSubmitPayload = {
+  subjectId: string;
+  questionIds: string[];
+  answers: AnswerMap;
+  timeSpentSeconds: number;
+};
+
 export type TopicScore = {
   correct: number;
   total: number;

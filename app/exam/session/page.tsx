@@ -5,6 +5,7 @@ import { connection } from "next/server";
 import { Suspense } from "react";
 
 import ExamRunner, { ExamSkeleton } from "@/components/exam/ExamRunner";
+import OfflineExamFallback from "@/components/exam/OfflineExamFallback";
 import {
   EXAM_QUESTION_COUNT,
   parseOptions,
@@ -68,12 +69,7 @@ async function ExamSession({ searchParams }: PageProps) {
   if (subjectsError) {
     console.error("Failed to load subjects", subjectsError);
 
-    return (
-      <ExamMessage
-        title="We could not load the exam"
-        body="Something went wrong while loading subjects. Please refresh the page or try again shortly."
-      />
-    );
+    return <OfflineExamFallback requestedCode={requestedCode ?? null} />;
   }
 
   const subjects = (subjectRows ?? []) as SubjectRow[];
@@ -106,12 +102,7 @@ async function ExamSession({ searchParams }: PageProps) {
   if (topicsError) {
     console.error("Failed to load topics", topicsError);
 
-    return (
-      <ExamMessage
-        title="We could not load this subject"
-        body="Its topics could not be fetched. Please try again."
-      />
-    );
+    return <OfflineExamFallback requestedCode={requestedCode ?? null} />;
   }
 
   const topics = (topicRows ?? []) as TopicRow[];
@@ -142,12 +133,7 @@ async function ExamSession({ searchParams }: PageProps) {
   if (questionsError) {
     console.error("Failed to load questions", questionsError);
 
-    return (
-      <ExamMessage
-        title="We could not load the questions"
-        body="The question bank could not be fetched. Please try again."
-      />
-    );
+    return <OfflineExamFallback requestedCode={requestedCode ?? null} />;
   }
 
   // One in-progress paper per subject per candidate. Used both as the
