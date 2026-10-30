@@ -13,7 +13,9 @@
  */
 
 import type {
+  AnswerKey,
   AnswerMap,
+  ExamMode,
   ExamQuestion,
   ExamSubmitPayload,
   FlaggedMap,
@@ -152,14 +154,39 @@ export type TopicRow = {
 export type CachedQuestionSet = {
   cacheKey: string;
   subject: { id: string; name: string; code: string };
+  /** Every subject code in the paper; absent on older single-subject caches. */
+  subjectCodes?: string[];
   topics: TopicRow[];
   /** Resolved, ordered, numbered questions exactly as they were presented. */
   questions: ExamQuestion[];
   fetchedAt: number;
+  /** Which mode produced this paper — practice sets also carry an answer key. */
+  mode?: ExamMode;
+  /** Only stored for practice papers, so study mode works offline. */
+  answerKey?: AnswerKey;
 };
 
 export function getQuestionSetCacheKey(subjectCode: string): string {
   return `subject:${subjectCode.toUpperCase()}`;
+}
+
+/**
+ * One cache entry per mode, subject and (for practice/mock) question count.
+ * Simulation keeps the legacy `subject:<CODE>` key so existing downloads stay
+ * usable after the multi-mode upgrade.
+ */
+export function getExamCacheKey(
+  mode: ExamMode,
+  subjectCode: string,
+  questionCount: number,
+): string {
+  const code = subjectCode.trim().toUpperCase();
+
+  if (mode === "simulation") {
+    return getQuestionSetCacheKey(code);
+  }
+
+  return `${mode}:${code}:${Math.max(1, Math.round(questionCount))}`;
 }
 
 export async function cacheQuestionSet(

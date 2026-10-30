@@ -195,15 +195,21 @@ async function ResultsContent({ params }: PageProps) {
     topicRows.map((topic) => [topic.id, topic.title]),
   );
 
+  const uniqueSubjectIds = [
+    ...new Set(topicRows.map((topic) => topic.subject_id)),
+  ];
   let subjectName = "JAMB UTME";
   let subjectCode: string | null = null;
-  const subjectId = topicRows[0]?.subject_id;
 
-  if (subjectId) {
+  if (uniqueSubjectIds.length > 1) {
+    // Multi-subject simulations do not belong to a single subject.
+    subjectName = "Multiple subjects";
+    subjectCode = `${uniqueSubjectIds.length} subjects`;
+  } else if (uniqueSubjectIds[0]) {
     const { data: subject } = await admin
       .from("subjects")
       .select("name, code")
-      .eq("id", subjectId)
+      .eq("id", uniqueSubjectIds[0])
       .maybeSingle();
 
     if (subject) {

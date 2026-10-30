@@ -15,7 +15,7 @@ export type NavbarUser = {
 };
 
 const LINKS = [
-  { href: "/exam/session", label: "Practice" },
+  { href: "/exam/setup", label: "Practice" },
   { href: "/exam/results", label: "My Results" },
 ];
 

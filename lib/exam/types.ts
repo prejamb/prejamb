@@ -11,6 +11,94 @@ export const EXAM_DURATION_SECONDS = 120 * 60;
 /** A subject session contains 40 questions. */
 export const EXAM_QUESTION_COUNT = 40;
 
+/* ------------------------------- exam modes ------------------------------- */
+
+/**
+ * The three ways a candidate can sit a paper:
+ *
+ * - `simulation` — full JAMB rules: 40 questions, 120 minutes, nothing is
+ *   revealed until the paper is submitted and graded on the server.
+ * - `practice`   — untimed study mode: each question validates as soon as an
+ *   option is chosen and shows the explanation. The answer key is delivered by
+ *   the server for the chosen paper only (see `app/api/exam/practice`).
+ * - `subject`    — a subject-specific mock with an adjustable question count
+ *   and a countdown scaled to the number of questions.
+ */
+export type ExamMode = "simulation" | "practice" | "subject";
+
+export const EXAM_MODES: readonly ExamMode[] = [
+  "simulation",
+  "practice",
+  "subject",
+];
+
+/** Practice papers need at least a handful of questions to be worthwhile. */
+export const PRACTICE_MIN_QUESTIONS = 5;
+
+/** Counts offered by the subject-mock configurator. */
+export const MOCK_QUESTION_COUNTS = [10, 20, 30, 40] as const;
+
+/** JAMB pace: 40 questions in 120 minutes is three minutes per question. */
+export const SECONDS_PER_QUESTION = 3 * 60;
+
+/** Never give a mock less than ten minutes, however few questions it has. */
+export const MOCK_MIN_DURATION_SECONDS = 10 * 60;
+
+export function isExamMode(value: unknown): value is ExamMode {
+  return (
+    typeof value === "string" && (EXAM_MODES as readonly string[]).includes(value)
+  );
+}
+
+/** Falls back to a full simulation when the query string is missing/invalid. */
+export function parseExamMode(value: unknown): ExamMode {
+  return isExamMode(value) ? value : "simulation";
+}
+
+/** Clamps a requested question count into the supported range. */
+export function clampQuestionCount(
+  value: unknown,
+  fallback = MOCK_QUESTION_COUNTS[0],
+): number {
+  const parsed =
+    typeof value === "number"
+      ? value
+      : typeof value === "string" && value.trim() !== ""
+        ? Number(value)
+        : fallback;
+
+  if (!Number.isFinite(parsed)) {
+    return fallback;
+  }
+
+  return Math.min(
+    EXAM_QUESTION_COUNT,
+    Math.max(PRACTICE_MIN_QUESTIONS, Math.round(parsed)),
+  );
+}
+
+/**
+ * Seconds allowed for a paper. Practice is untimed (0); simulation always gets
+ * the full two hours; a subject mock scales with its question count.
+ */
+export function resolveDurationSeconds(
+  mode: ExamMode,
+  questionCount: number,
+): number {
+  if (mode === "practice") {
+    return 0;
+  }
+
+  if (mode === "simulation") {
+    return EXAM_DURATION_SECONDS;
+  }
+
+  return Math.min(
+    EXAM_DURATION_SECONDS,
+    Math.max(MOCK_MIN_DURATION_SECONDS, questionCount * SECONDS_PER_QUESTION),
+  );
+}
+
 /** Abandoned sessions older than this are discarded instead of resumed. */
 export const EXAM_MAX_RESUME_AGE_MS = 12 * 60 * 60 * 1000;
 
@@ -40,11 +128,51 @@ export type AnswerMap = Partial<Record<string, OptionLabel>>;
 export type FlaggedMap = Record<string, boolean>;
 
 /**
+ * Answer key for a single question. Only ever sent to the browser in practice
+ * mode, where the whole point is immediate validation.
+ */
+export type QuestionAnswerKey = {
+  correctOption: OptionLabel;
+  explanation: string | null;
+};
+
+/** Keyed by question id. Absent for ungraded modes (simulation/mock). */
+export type AnswerKey = Record<string, QuestionAnswerKey>;
+
+/** Presentation copy for each mode, shared by setup, runner and results. */
+export const EXAM_MODE_DETAILS: Record<
+  ExamMode,
+  { label: string; shortLabel: string; description: string }
+> = {
+  simulation: {
+    label: "Simulation Mode",
+    shortLabel: "Simulation",
+    description:
+      "Full JAMB rules across all the subjects you select: 40 questions in 120 minutes. Answers stay locked until you submit and the paper is graded.",
+  },
+  practice: {
+    label: "Practice / Study Mode",
+    shortLabel: "Practice",
+    description:
+      "Untimed and unhurried. Each answer is marked instantly and the explanation appears straight away.",
+  },
+  subject: {
+    label: "Subject-Specific Mock",
+    shortLabel: "Subject mock",
+    description:
+      "Focus on one subject with the question count you choose. The countdown scales with your paper.",
+  },
+};
+
+/**
  * Body sent to `POST /api/exam/submit`. The offline sync queue stores this
  * exact shape so queued attempts can be replayed verbatim when online.
  */
 export type ExamSubmitPayload = {
+  /** Primary subject; kept so attempts queued before multi-subject support replay. */
   subjectId: string;
+  /** Every subject represented in the paper (multi-subject simulations). */
+  subjectIds?: string[];
   questionIds: string[];
   answers: AnswerMap;
   timeSpentSeconds: number;

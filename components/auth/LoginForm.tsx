@@ -191,7 +191,7 @@ export default function LoginForm({ next, initialError }: LoginFormProps) {
       />
       <div
         aria-hidden="true"
-        className="pointer-events-none absolute -right-16 bottom-0 size-72 rounded-full bg-emerald-400/15 blur-3xl"
+        className="pointer-events-none absolute -right-16 bottom-0 size-72 rounded-full bg-primary-400/15 blur-3xl"
       />
 
       <div className="relative w-full max-w-md">
@@ -374,7 +374,7 @@ export default function LoginForm({ next, initialError }: LoginFormProps) {
           </div>
 
           <Link
-            href="/exam/session"
+            href="/exam/setup"
             className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
           >
             Continue as guest

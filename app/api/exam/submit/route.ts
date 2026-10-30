@@ -5,6 +5,7 @@ import { createAdminClient } from "@/lib/supabase/admin";
 import { createClient } from "@/lib/supabase/server";
 
 const MAX_QUESTIONS = 200;
+const MAX_SUBJECTS = 10;
 
 const UUID_PATTERN =
   /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
@@ -47,11 +48,26 @@ export async function POST(request: Request) {
 
   const body = payload as Record<string, unknown>;
 
-  const subjectId =
+  // Multi-subject simulations send every subject in the paper. Older queued
+  // attempts only carry `subjectId`, so accept both shapes.
+  const rawSubjectIds = Array.isArray(body.subjectIds)
+    ? body.subjectIds.filter(
+        (id): id is string => typeof id === "string" && UUID_PATTERN.test(id),
+      )
+    : [];
+  const singleSubjectId =
     typeof body.subjectId === "string" ? body.subjectId : "";
 
-  if (!UUID_PATTERN.test(subjectId)) {
-    return badRequest("A valid subjectId is required.");
+  const subjectIds = [
+    ...new Set(
+      (rawSubjectIds.length > 0 ? rawSubjectIds : [singleSubjectId]).filter(
+        (id) => UUID_PATTERN.test(id),
+      ),
+    ),
+  ].slice(0, MAX_SUBJECTS);
+
+  if (subjectIds.length === 0) {
+    return badRequest("At least one valid subject is required.");
   }
 
   const rawQuestionIds = Array.isArray(body.questionIds)
@@ -110,12 +126,12 @@ export async function POST(request: Request) {
     );
   }
 
-  // Restrict grading to questions that really belong to the requested subject,
-  // so a crafted payload cannot mix in questions from other papers.
+  // Restrict grading to questions that really belong to the requested
+  // subjects, so a crafted payload cannot mix in questions from other papers.
   const { data: topicRows, error: topicsError } = await admin
     .from("topics")
     .select("id")
-    .eq("subject_id", subjectId);
+    .in("subject_id", subjectIds);
 
   if (topicsError) {
     console.error("Failed to load topics for grading", topicsError);
@@ -154,7 +170,9 @@ export async function POST(request: Request) {
   const gradedIds = questionIds.filter((id) => questionById.has(id));
 
   if (gradedIds.length === 0) {
-    return badRequest("None of the submitted questions belong to this subject.");
+    return badRequest(
+      "None of the submitted questions belong to the selected subjects.",
+    );
   }
 
   let score = 0;

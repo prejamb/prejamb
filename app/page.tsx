@@ -32,7 +32,7 @@ export default function Home() {
       <section className="mx-auto max-w-6xl px-4 pt-14 pb-16 sm:px-6 sm:pt-20 lg:pt-24">
         <div className="mx-auto max-w-3xl text-center">
           <span className="inline-flex items-center gap-2 rounded-full border border-primary-200 bg-white/80 px-3 py-1 text-xs font-semibold text-primary-700 shadow-sm backdrop-blur">
-            <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse-soft" />
+            <span className="size-1.5 rounded-full bg-primary-500 animate-pulse-soft" />
             Built for the JAMB UTME
           </span>
 
@@ -50,10 +50,10 @@ export default function Home() {
 
           <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
             <Link
-              href="/exam/session"
+              href="/exam/setup"
               className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-primary-600 to-primary-700 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-primary-600/30 transition-all hover:from-primary-500 hover:to-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 sm:w-auto"
             >
-              Start a free practice
+              Start Practice
               <ArrowRight className="size-4" aria-hidden="true" />
             </Link>
             <Link

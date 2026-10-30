@@ -4,6 +4,7 @@ import {
   AlertTriangle,
   ArrowRight,
   CheckCircle2,
+  Clock,
   CloudOff,
   LayoutGrid,
   Loader2,
@@ -12,6 +13,7 @@ import {
   WifiOff,
 } from "lucide-react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
@@ -21,17 +23,21 @@ import {
   saveExamProgress,
   type QueuedAttempt,
 } from "@/lib/db/indexeddb";
+import { gradePaper } from "@/lib/exam/grading";
 import {
   clearExamSnapshot,
   loadExamSnapshot,
   saveExamSnapshot,
 } from "@/lib/exam/storage";
-import { formatDuration } from "@/lib/exam/format";
+import { formatClock, formatDuration } from "@/lib/exam/format";
 import {
   EXAM_DURATION_SECONDS,
   EXAM_MAX_RESUME_AGE_MS,
+  EXAM_MODE_DETAILS,
   EXAM_SNAPSHOT_VERSION,
+  type AnswerKey,
   type AnswerMap,
+  type ExamMode,
   type ExamQuestion,
   type ExamResult,
   type ExamSnapshot,
@@ -54,6 +60,16 @@ type ExamRunnerProps = {
   sessionId: string;
   candidateName: string;
   isAuthenticated: boolean;
+  /** Which experience this paper belongs to. */
+  mode: ExamMode;
+  /** Countdown length in seconds; 0 means untimed (practice). */
+  durationSeconds: number;
+  /** Only provided in practice mode, where answers are revealed on selection. */
+  answerKey?: AnswerKey;
+  /** Every subject represented by the paper (multi-subject simulations). */
+  subjectIds?: string[];
+  /** Live session URL, used to return here after signing in. */
+  resumeHref?: string;
   /**
    * localStorage key used while the candidate was a guest. If they sign in
    * mid-exam the draft is adopted under the new user-scoped key, so their
@@ -115,9 +131,16 @@ export default function ExamRunner({
   sessionId,
   candidateName,
   isAuthenticated,
+  mode,
+  durationSeconds,
+  answerKey,
+  subjectIds,
+  resumeHref,
   guestSessionId,
 }: ExamRunnerProps) {
   const { online } = useNetworkStatus();
+  const isPractice = mode === "practice";
+  const modeDetails = EXAM_MODE_DETAILS[mode];
 
   const [hydrated, setHydrated] = useState(false);
   const [currentIndex, setCurrentIndex] = useState(0);
@@ -157,6 +180,20 @@ export default function ExamRunner({
       ),
     [flagged, questions],
   );
+
+  const correctCount = useMemo(() => {
+    if (!isPractice || !answerKey) {
+      return 0;
+    }
+
+    return questions.reduce(
+      (count, question) =>
+        answers[question.id] === answerKey[question.id]?.correctOption
+          ? count + 1
+          : count,
+      0,
+    );
+  }, [answerKey, answers, isPractice, questions]);
 
   const currentQuestion = questions[currentIndex];
   const unansweredCount = questions.length - answeredCount;
@@ -223,7 +260,9 @@ export default function ExamRunner({
         setDeadline(stored.deadline);
       } else {
         setStartedAt(now);
-        setDeadline(now + EXAM_DURATION_SECONDS * 1000);
+        setDeadline(
+          durationSeconds > 0 ? now + durationSeconds * 1000 : 0,
+        );
       }
 
       setHydrated(true);
@@ -232,13 +271,15 @@ export default function ExamRunner({
     return () => {
       cancelled = true;
     };
-  }, [guestSessionId, sessionId, questions.length]);
+  }, [durationSeconds, guestSessionId, sessionId, questions.length]);
 
   /* ---------------------------------------------------------------------- */
   /* Persist every change                                                   */
   /* ---------------------------------------------------------------------- */
   useEffect(() => {
-    if (!hydrated || result || deadline === 0) {
+    // `deadline === 0` is a valid untimed (practice) paper — only wait for
+    // hydration and for a finished attempt.
+    if (!hydrated || result) {
       return;
     }
 
@@ -337,6 +378,30 @@ export default function ExamRunner({
     [sessionId],
   );
 
+  /**
+   * Practice mode can grade itself because the key is already on the device.
+   * This keeps feedback instant and works offline, unlike simulation/mocks
+   * which must be graded by the server.
+   */
+  const completePracticeLocally = useCallback(
+    (timeSpentSeconds: number, message?: string) => {
+      const graded = gradePaper(questions, answers, answerKey ?? {});
+
+      setResult({
+        ...graded,
+        timeSpentSeconds,
+        saved: false,
+        attemptId: null,
+        timedOut: false,
+        ...(message ? { message } : {}),
+      });
+
+      clearExamSnapshot(sessionId);
+      void clearExamProgress(sessionId);
+    },
+    [answerKey, answers, questions, sessionId],
+  );
+
   const submitExam = useCallback(
     async (reason: "manual" | "timeout") => {
       if (submittingRef.current) {
@@ -349,17 +414,18 @@ export default function ExamRunner({
       setError(null);
 
       const elapsed =
-        startedAt > 0
-          ? Math.round((Date.now() - startedAt) / 1000)
-          : EXAM_DURATION_SECONDS;
+        startedAt > 0 ? Math.round((Date.now() - startedAt) / 1000) : 0;
 
-      const timeSpentSeconds = Math.min(
-        EXAM_DURATION_SECONDS,
-        Math.max(0, elapsed),
-      );
+      // Timed papers stop counting at their limit; practice has no limit.
+      const cap =
+        durationSeconds > 0 ? durationSeconds : EXAM_DURATION_SECONDS;
+
+      const timeSpentSeconds = Math.min(cap, Math.max(0, elapsed));
 
       const payload: ExamSubmitPayload = {
         subjectId: subject.id,
+        subjectIds:
+          subjectIds && subjectIds.length > 0 ? subjectIds : [subject.id],
         questionIds,
         answers,
         timeSpentSeconds,
@@ -367,7 +433,15 @@ export default function ExamRunner({
 
       // No connection (or a stale "online" flag): save locally for later sync.
       if (!online) {
-        await queueSubmission(payload, reason);
+        if (isPractice) {
+          completePracticeLocally(
+            timeSpentSeconds,
+            "Practice results are shown on this device only. Finish while online to save the attempt.",
+          );
+        } else {
+          await queueSubmission(payload, reason);
+        }
+
         setIsSubmitting(false);
         submittingRef.current = false;
         return;
@@ -403,8 +477,15 @@ export default function ExamRunner({
         clearExamSnapshot(sessionId);
         void clearExamProgress(sessionId);
       } catch (cause) {
-        // fetch rejects with a TypeError when the socket is unreachable.
-        if (cause instanceof TypeError || !navigator.onLine) {
+        // Practice can always fall back to local grading — the key is already
+        // on the device, and submitting only persists the attempt.
+        if (isPractice) {
+          completePracticeLocally(
+            timeSpentSeconds,
+            "We could not save this attempt, but your results are shown below. Finish while online to keep it in your history.",
+          );
+        } else if (cause instanceof TypeError || !navigator.onLine) {
+          // fetch rejects with a TypeError when the socket is unreachable.
           await queueSubmission(payload, reason);
         } else {
           setError(
@@ -422,7 +503,19 @@ export default function ExamRunner({
         submittingRef.current = false;
       }
     },
-    [answers, online, questionIds, queueSubmission, sessionId, startedAt, subject.id],
+    [
+      answers,
+      completePracticeLocally,
+      durationSeconds,
+      isPractice,
+      online,
+      questionIds,
+      queueSubmission,
+      sessionId,
+      startedAt,
+      subject.id,
+      subjectIds,
+    ],
   );
 
   const handleTimeUp = useCallback(() => {
@@ -448,9 +541,15 @@ export default function ExamRunner({
         return;
       }
 
+      // Practice mode locks a question once answered so the revealed answer
+      // cannot simply be flipped to the "right" one.
+      if (isPractice && answers[question.id]) {
+        return;
+      }
+
       setAnswers((previous) => ({ ...previous, [question.id]: label }));
     },
-    [currentIndex, questions],
+    [answers, currentIndex, isPractice, questions],
   );
 
   const toggleFlag = useCallback(() => {
@@ -492,6 +591,7 @@ export default function ExamRunner({
     return (
       <ResultScreen
         result={result}
+        mode={mode}
         subject={subject}
         candidateName={candidateName}
         questions={questions}
@@ -515,13 +615,28 @@ export default function ExamRunner({
     return null;
   }
 
+  // The shell always supplies the live URL; the fallback keeps the sign-in
+  // link usable if the runner is mounted without one.
+  const signInParams = new URLSearchParams({ mode });
+
+  if (mode !== "simulation") {
+    signInParams.set("subject", subject.code);
+    signInParams.set("count", String(questions.length));
+  } else if (!subject.code.includes(" · ")) {
+    signInParams.set("subjects", subject.code);
+  }
+
+  const signInHref = `/login?next=${encodeURIComponent(
+    resumeHref ?? `/exam/session?${signInParams.toString()}`,
+  )}`;
+
   return (
     <div className="min-h-dvh bg-slate-100 text-slate-900">
       <header className="sticky top-16 z-30 border-b border-white/10 bg-gradient-to-br from-primary-800 via-primary-700 to-primary-900 text-white shadow-lg shadow-primary-950/40">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:px-6">
           <div className="min-w-0 flex-1">
             <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-white/60">
-              PreJamb &middot; JAMB UTME Practice
+              PreJamb &middot; {modeDetails.label}
             </p>
             <div className="mt-0.5 flex items-baseline gap-2">
               <h1 className="truncate text-base font-semibold sm:text-lg">
@@ -533,14 +648,18 @@ export default function ExamRunner({
             </div>
           </div>
 
-          <Timer deadline={deadline} onExpire={handleTimeUp} />
+          {durationSeconds > 0 ? (
+            <Timer deadline={deadline} onExpire={handleTimeUp} />
+          ) : (
+            <CountUpTimer startedAt={startedAt} />
+          )}
 
           <button
             type="button"
             onClick={() => setConfirmOpen(true)}
-            className="inline-flex items-center justify-center rounded-xl bg-white px-4 py-2 text-xs font-semibold text-primary-800 shadow-sm transition-all hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-primary-700 sm:text-sm"
+            className="inline-flex items-center justify-center rounded-xl bg-primary-50 px-4 py-2 text-xs font-semibold text-primary-800 shadow-sm transition-all hover:bg-primary-100 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-primary-700 sm:text-sm"
           >
-            Submit
+            {isPractice ? "Finish" : "Submit"}
           </button>
         </div>
       </header>
@@ -558,9 +677,7 @@ export default function ExamRunner({
                   Guest
                 </span>
                 <Link
-                  href={`/login?next=${encodeURIComponent(
-                    `/exam/session?subject=${subject.code}`,
-                  )}`}
+                  href={signInHref}
                   className="ml-2 font-semibold text-primary-700 underline-offset-2 hover:underline"
                 >
                   Sign in to save
@@ -579,10 +696,24 @@ export default function ExamRunner({
             <span className="font-semibold text-emerald-700">
               {answeredCount}
             </span>{" "}
-            of {questions.length} &middot; Flagged{" "}
-            <span className="font-semibold text-primary-700">
-              {flaggedCount}
-            </span>
+            of {questions.length}
+            {isPractice ? (
+              <>
+                {" "}
+                &middot; Correct{" "}
+                <span className="font-semibold text-primary-700">
+                  {correctCount}
+                </span>
+              </>
+            ) : (
+              <>
+                {" "}
+                &middot; Flagged{" "}
+                <span className="font-semibold text-primary-700">
+                  {flaggedCount}
+                </span>
+              </>
+            )}
           </p>
         </div>
       </div>
@@ -627,6 +758,7 @@ export default function ExamRunner({
                   answers={answers}
                   flagged={flagged}
                   onSelect={handlePaletteSelect}
+                  answerKey={isPractice ? answerKey : undefined}
                 />
               </div>
             ) : null}
@@ -641,6 +773,9 @@ export default function ExamRunner({
             onToggleFlag={toggleFlag}
             onPrevious={() => goTo(currentIndex - 1)}
             onNext={() => goTo(currentIndex + 1)}
+            mode={mode}
+            answerKey={isPractice ? answerKey : undefined}
+            locked={isPractice && Boolean(answers[currentQuestion.id])}
           />
         </div>
 
@@ -651,24 +786,41 @@ export default function ExamRunner({
             answers={answers}
             flagged={flagged}
             onSelect={handlePaletteSelect}
+            answerKey={isPractice ? answerKey : undefined}
           />
 
           <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-card">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
-              Exam rules
+              {isPractice ? "Study rules" : "Exam rules"}
             </h2>
             <ul className="mt-2 space-y-1.5 text-xs leading-5 text-slate-600">
-              <li>&bull; {questions.length} questions &middot; 2 hours</li>
-              <li>&bull; One answer per question, options A to D.</li>
-              <li>&bull; Progress saves automatically on this device.</li>
-              <li>&bull; The exam submits itself when the timer ends.</li>
+              {isPractice ? (
+                <>
+                  <li>
+                    &bull; {questions.length} questions &middot; no time limit
+                  </li>
+                  <li>&bull; One answer per question, options A to D.</li>
+                  <li>&bull; Answers and explanations appear instantly.</li>
+                  <li>&bull; The study clock counts up from zero.</li>
+                </>
+              ) : (
+                <>
+                  <li>
+                    &bull; {questions.length} questions &middot;{" "}
+                    {formatDuration(durationSeconds)}
+                  </li>
+                  <li>&bull; One answer per question, options A to D.</li>
+                  <li>&bull; Progress saves automatically on this device.</li>
+                  <li>&bull; The exam submits itself when the timer ends.</li>
+                </>
+              )}
             </ul>
             <button
               type="button"
               onClick={() => setConfirmOpen(true)}
-              className="mt-4 w-full rounded-xl bg-gradient-to-b from-emerald-600 to-emerald-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-600/30 transition-all hover:from-emerald-500 hover:to-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+              className="mt-4 w-full rounded-xl bg-gradient-to-b from-primary-600 to-primary-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-primary-600/30 transition-all hover:from-primary-500 hover:to-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2"
             >
-              Submit exam
+              {isPractice ? "Finish practice" : "Submit exam"}
             </button>
           </div>
         </aside>
@@ -686,7 +838,7 @@ export default function ExamRunner({
               id="submit-dialog-title"
               className="text-base font-semibold text-slate-900"
             >
-              Submit this exam?
+              {isPractice ? "Finish this practice session?" : "Submit this exam?"}
             </h2>
             <p className="mt-1 text-sm text-slate-600">
               You have answered{" "}
@@ -713,16 +865,23 @@ export default function ExamRunner({
               </div>
               <div className="rounded-lg bg-slate-50 px-2 py-2">
                 <dt className="text-[10px] uppercase tracking-wide text-slate-500">
-                  Flagged
+                  {isPractice ? "Correct" : "Flagged"}
                 </dt>
-                <dd className="text-lg font-bold tabular-nums text-primary-700">
-                  {flaggedCount}
+                <dd
+                  className={cn(
+                    "text-lg font-bold tabular-nums",
+                    isPractice ? "text-emerald-700" : "text-primary-700",
+                  )}
+                >
+                  {isPractice ? correctCount : flaggedCount}
                 </dd>
               </div>
             </dl>
 
             <p className="mt-4 rounded-md bg-amber-50 px-3 py-2 text-xs leading-5 text-amber-800 ring-1 ring-amber-200">
-              Once submitted, your answers cannot be changed.
+              {isPractice
+                ? "You will see your score and topic breakdown. Answers already revealed cannot be changed."
+                : "Once submitted, your answers cannot be changed."}
             </p>
 
             <div className="mt-5 flex gap-2">
@@ -737,9 +896,9 @@ export default function ExamRunner({
                 type="button"
                 onClick={() => void submitExam("manual")}
                 disabled={isSubmitting}
-                className="flex-1 rounded-xl bg-gradient-to-b from-emerald-600 to-emerald-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-600/30 transition-all hover:from-emerald-500 hover:to-emerald-700 disabled:opacity-60"
+                className="flex-1 rounded-xl bg-gradient-to-b from-primary-600 to-primary-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-primary-600/30 transition-all hover:from-primary-500 hover:to-primary-700 disabled:opacity-60"
               >
-                Submit
+                {isPractice ? "Finish" : "Submit"}
               </button>
             </div>
           </div>
@@ -787,6 +946,47 @@ export default function ExamRunner({
           </div>
         </div>
       ) : null}
+    </div>
+  );
+}
+
+/* -------------------------------------------------------------------------- */
+/* Practice stopwatch                                                         */
+/* -------------------------------------------------------------------------- */
+
+/**
+ * Practice is untimed, so the header counts up from the session's start time
+ * instead of imposing a deadline. Deriving the value from `startedAt` keeps it
+ * accurate after the tab has been in the background.
+ */
+function CountUpTimer({ startedAt }: { startedAt: number }) {
+  const [now, setNow] = useState(() => Date.now());
+
+  useEffect(() => {
+    const intervalId = window.setInterval(() => setNow(Date.now()), 1000);
+
+    return () => window.clearInterval(intervalId);
+  }, []);
+
+  const elapsed =
+    startedAt > 0 ? Math.max(0, Math.floor((now - startedAt) / 1000)) : 0;
+
+  return (
+    <div
+      role="timer"
+      aria-live="off"
+      aria-label={`${formatClock(elapsed)} of study time`}
+      className="flex items-center gap-2 rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-white"
+    >
+      <Clock className="size-4 shrink-0" aria-hidden="true" />
+      <span className="flex flex-col leading-none">
+        <span className="text-[9px] font-semibold uppercase tracking-[0.18em] opacity-70">
+          Study time
+        </span>
+        <span className="mt-1 font-mono text-base font-bold tabular-nums sm:text-lg">
+          {formatClock(elapsed)}
+        </span>
+      </span>
     </div>
   );
 }
@@ -933,7 +1133,7 @@ function QueuedScreen({
             isAuthenticated ? (
               <Link
                 href="/exam/results"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-emerald-600 to-emerald-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-600/30 transition-all hover:from-emerald-500 hover:to-emerald-700"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-primary-600 to-primary-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-primary-600/30 transition-all hover:from-primary-500 hover:to-primary-700"
               >
                 View my results
                 <ArrowRight className="size-4" aria-hidden="true" />
@@ -941,7 +1141,7 @@ function QueuedScreen({
             ) : (
               <Link
                 href="/login"
-                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-emerald-600 to-emerald-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-600/30 transition-all hover:from-emerald-500 hover:to-emerald-700"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-primary-600 to-primary-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-primary-600/30 transition-all hover:from-primary-500 hover:to-primary-700"
               >
                 Sign in to track results
                 <ArrowRight className="size-4" aria-hidden="true" />
@@ -986,17 +1186,22 @@ function QueuedScreen({
 /* -------------------------------------------------------------------------- */
 function ResultScreen({
   result,
+  mode,
   subject,
   candidateName,
   questions,
   sessionId,
 }: {
   result: ExamResult;
+  mode: ExamMode;
   subject: { id: string; name: string; code: string };
   candidateName: string;
   questions: ExamQuestion[];
   sessionId: string;
 }) {
+  const isPractice = mode === "practice";
+  const modeDetails = EXAM_MODE_DETAILS[mode];
+
   const topicTitles = useMemo(
     () => new Map(questions.map((question) => [question.topicId, question.topicTitle])),
     [questions],
@@ -1018,9 +1223,11 @@ function ResultScreen({
 
   const topicEntries = Object.entries(result.topicBreakdown);
 
+  const router = useRouter();
+
   const handleRetake = () => {
     clearExamSnapshot(sessionId);
-    window.location.reload();
+    router.push("/exam/setup");
   };
 
   return (
@@ -1028,7 +1235,7 @@ function ResultScreen({
       <header className="bg-gradient-to-br from-primary-800 via-primary-700 to-primary-900 px-4 py-6 text-white sm:px-6">
         <div className="mx-auto max-w-3xl">
           <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-white/60">
-            PreJamb &middot; CBT Result
+            PreJamb &middot; {modeDetails.label}
           </p>
           <h1 className="mt-1 text-xl font-semibold">{subject.name}</h1>
           <p className="text-sm text-white/70">
@@ -1091,7 +1298,7 @@ function ResultScreen({
             </div>
             <div>
               <dt className="text-[10px] uppercase tracking-wide text-slate-500">
-                Time used
+                {isPractice ? "Time practised" : "Time used"}
               </dt>
               <dd className="text-lg font-bold tabular-nums text-slate-700">
                 {formatDuration(result.timeSpentSeconds)}
@@ -1172,10 +1379,14 @@ function ResultScreen({
           <button
             type="button"
             onClick={handleRetake}
-            className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-emerald-600 to-emerald-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-600/30 transition-all hover:from-emerald-500 hover:to-emerald-700"
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-primary-600 to-primary-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-primary-600/30 transition-all hover:from-primary-500 hover:to-primary-700"
           >
             <RotateCcw className="size-4" aria-hidden="true" />
-            Take another exam
+            {isPractice
+              ? "Practise again"
+              : mode === "subject"
+                ? "Try another mock"
+                : "Take another exam"}
           </button>
         </div>
       </main>

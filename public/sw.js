@@ -11,7 +11,7 @@
  * Bump VERSION to invalidate previously cached shells and assets.
  * ========================================================================== */
 
-const VERSION = "v3";
+const VERSION = "v5";
 const SHELL_CACHE = `prejamb-shell-${VERSION}`;
 const STATIC_CACHE = `prejamb-static-${VERSION}`;
 const RUNTIME_CACHE = `prejamb-runtime-${VERSION}`;
@@ -19,6 +19,7 @@ const RUNTIME_CACHE = `prejamb-runtime-${VERSION}`;
 const PRECACHE_URLS = [
   "/",
   "/login",
+  "/exam/setup",
   "/exam/session",
   "/manifest.json",
   "/icons/icon.svg",

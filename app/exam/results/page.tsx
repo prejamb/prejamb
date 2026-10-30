@@ -122,21 +122,30 @@ async function ResultsList() {
     const percentage = Math.round((attempt.score / total) * 100);
     const breakdown = breakdowns.get(attempt.id) ?? {};
 
-    let subject: SubjectRow | null = null;
+    // A simulation can span several subjects, so collect every subject it
+    // touched instead of picking the first topic.
+    const attemptSubjectIds = new Set<string>();
 
     for (const topicId of Object.keys(breakdown)) {
       const topic = topicById.get(topicId);
 
       if (topic) {
-        subject = subjectById.get(topic.subject_id) ?? null;
-
-        if (subject) {
-          break;
-        }
+        attemptSubjectIds.add(topic.subject_id);
       }
     }
 
-    return { attempt, percentage, subject };
+    const attemptSubjects = [...attemptSubjectIds]
+      .map((id) => subjectById.get(id))
+      .filter((subject): subject is SubjectRow => Boolean(subject));
+
+    return {
+      attempt,
+      percentage,
+      subjectLabel:
+        attemptSubjects.length > 1
+          ? `${attemptSubjects.length} subjects`
+          : (attemptSubjects[0]?.name ?? "Practice test"),
+    };
   });
 
   const percentages = rows.map((row) => row.percentage);
@@ -166,7 +175,7 @@ async function ResultsList() {
           </div>
 
           <Link
-            href="/exam/session"
+            href="/exam/setup"
             className="inline-flex items-center gap-1.5 rounded-md bg-white/10 px-3.5 py-2 text-xs font-semibold text-white ring-1 ring-inset ring-white/25 transition-colors hover:bg-white/20"
           >
             New practice
@@ -215,7 +224,7 @@ async function ResultsList() {
               with a full diagnostic report.
             </p>
             <Link
-              href="/exam/session"
+              href="/exam/setup"
               className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-b from-primary-600 to-primary-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-primary-600/30 transition-all hover:from-primary-500 hover:to-primary-700"
             >
               Start practicing
@@ -224,7 +233,7 @@ async function ResultsList() {
           </div>
         ) : (
           <ul className="space-y-2.5">
-            {rows.map(({ attempt, percentage, subject }) => {
+            {rows.map(({ attempt, percentage, subjectLabel }) => {
               const tone =
                 percentage >= 70
                   ? "border-emerald-500 text-emerald-700"
@@ -249,7 +258,7 @@ async function ResultsList() {
 
                     <span className="min-w-0 flex-1">
                       <span className="block truncate text-sm font-semibold text-slate-900">
-                        {subject?.name ?? "Practice test"}
+                        {subjectLabel}
                       </span>
                       <span className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-slate-500">
                         <span>{formatAttemptDate(attempt.created_at)}</span>
