@@ -291,12 +291,12 @@ function toCount(value: unknown): number {
 function ReportMessage({ title, body }: { title: string; body: string }) {
   return (
     <div className="grid min-h-dvh place-items-center bg-slate-100 px-4 text-slate-900">
-      <div className="w-full max-w-md rounded-xl border border-slate-200 bg-white p-6 text-center shadow-sm">
+      <div className="w-full max-w-md rounded-2xl border border-slate-200 bg-white p-7 text-center shadow-card-lg">
         <h1 className="text-lg font-semibold">{title}</h1>
         <p className="mt-2 text-sm leading-6 text-slate-600">{body}</p>
         <Link
           href="/"
-          className="mt-5 inline-flex items-center justify-center rounded-md bg-[#4B1D6F] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#3d175b]"
+          className="mt-6 inline-flex items-center justify-center rounded-xl bg-gradient-to-b from-primary-600 to-primary-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-primary-600/30 transition-all hover:from-primary-500 hover:to-primary-700"
         >
           Back to home
         </Link>
@@ -307,18 +307,22 @@ function ReportMessage({ title, body }: { title: string; body: string }) {
 
 function ReportSkeleton() {
   return (
-    <div className="min-h-dvh bg-slate-100" aria-busy="true" aria-label="Loading report">
-      <div className="bg-[#4B1D6F] px-4 py-6 sm:px-6">
+    <div
+      className="min-h-dvh bg-slate-100"
+      aria-busy="true"
+      aria-label="Loading report"
+    >
+      <div className="bg-gradient-to-br from-primary-800 via-primary-700 to-primary-900 px-4 py-7 sm:px-6">
         <div className="mx-auto max-w-5xl space-y-3">
           <div className="h-2 w-24 rounded bg-white/20" />
-          <div className="h-5 w-48 rounded bg-white/30" />
+          <div className="h-6 w-48 rounded bg-white/30" />
           <div className="h-3 w-36 rounded bg-white/20" />
         </div>
       </div>
 
-      <div className="mx-auto max-w-5xl space-y-4 px-4 py-5 sm:px-6">
-        <div className="h-40 animate-pulse rounded-xl border border-slate-200 bg-white" />
-        <div className="h-56 animate-pulse rounded-xl border border-slate-200 bg-white" />
+      <div className="mx-auto max-w-5xl space-y-4 px-4 py-6 sm:px-6">
+        <div className="h-44 animate-pulse rounded-2xl border border-slate-200 bg-white" />
+        <div className="h-60 animate-pulse rounded-2xl border border-slate-200 bg-white" />
       </div>
     </div>
   );

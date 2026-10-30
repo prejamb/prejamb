@@ -48,14 +48,14 @@ async function LoginContent({ searchParams }: PageProps) {
 function LoginSkeleton() {
   return (
     <div
-      className="flex min-h-[calc(100dvh-4rem)] items-center justify-center bg-slate-100 px-4 py-10"
+      className="flex min-h-[calc(100dvh-4rem)] items-center justify-center bg-auth px-4 py-12"
       aria-busy="true"
       aria-label="Loading sign-in"
     >
       <div className="w-full max-w-md">
-        <div className="mx-auto size-12 animate-pulse rounded-2xl bg-slate-300" />
-        <div className="mx-auto mt-4 h-7 w-40 animate-pulse rounded bg-slate-300" />
-        <div className="mt-6 h-[420px] animate-pulse rounded-2xl border border-slate-200 bg-white" />
+        <div className="mx-auto size-14 animate-pulse rounded-2xl bg-slate-200" />
+        <div className="mx-auto mt-5 h-7 w-40 animate-pulse rounded bg-slate-200" />
+        <div className="mt-7 h-[440px] animate-pulse rounded-3xl border border-slate-200 bg-white" />
       </div>
     </div>
   );

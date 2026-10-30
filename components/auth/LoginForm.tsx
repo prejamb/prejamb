@@ -1,6 +1,13 @@
 "use client";
 
-import { ArrowRight, Loader2, Lock, Mail, ShieldCheck } from "lucide-react";
+import {
+  ArrowRight,
+  GraduationCap,
+  Loader2,
+  Lock,
+  Mail,
+  Sparkles,
+} from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
@@ -176,25 +183,39 @@ export default function LoginForm({ next, initialError }: LoginFormProps) {
   }
 
   return (
-    <div className="flex min-h-[calc(100dvh-4rem)] items-center justify-center bg-gradient-to-b from-slate-100 to-white px-4 py-10">
-      <div className="w-full max-w-md">
-        <div className="mb-5 text-center">
-          <div className="mx-auto grid size-12 place-items-center rounded-2xl bg-[#4B1D6F] text-white shadow-lg shadow-purple-900/20">
-            <ShieldCheck className="size-6" aria-hidden="true" />
+    <div className="relative flex min-h-[calc(100dvh-4rem)] items-center justify-center overflow-hidden bg-auth px-4 py-12">
+      {/* Ambient glow blobs */}
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -left-24 top-10 size-72 rounded-full bg-primary-400/20 blur-3xl"
+      />
+      <div
+        aria-hidden="true"
+        className="pointer-events-none absolute -right-16 bottom-0 size-72 rounded-full bg-emerald-400/15 blur-3xl"
+      />
+
+      <div className="relative w-full max-w-md">
+        <div className="mb-7 text-center">
+          <div className="relative mx-auto grid size-14 place-items-center rounded-2xl bg-gradient-to-br from-primary-500 to-primary-800 text-white shadow-glow">
+            <GraduationCap className="size-7" aria-hidden="true" />
+            <span
+              aria-hidden="true"
+              className="absolute inset-0 rounded-2xl ring-1 ring-inset ring-white/25"
+            />
           </div>
-          <h1 className="mt-4 text-2xl font-bold tracking-tight text-slate-900">
+          <h1 className="mt-5 text-2xl font-bold tracking-tight text-slate-900">
             {isSignUp && mode === "password"
               ? "Create your account"
               : "Welcome back"}
           </h1>
-          <p className="mt-1 text-sm text-slate-600">
+          <p className="mt-1.5 text-sm text-slate-500">
             Sign in to save your scores and track your progress.
           </p>
         </div>
 
-        <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-xl shadow-slate-900/5 sm:p-6">
+        <div className="rounded-3xl border border-slate-200/80 bg-white/90 p-6 shadow-card-lg backdrop-blur-xl sm:p-7">
           <div
-            className="grid grid-cols-2 gap-1 rounded-lg bg-slate-100 p-1"
+            className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1"
             role="group"
             aria-label="Sign-in method"
           >
@@ -208,8 +229,8 @@ export default function LoginForm({ next, initialError }: LoginFormProps) {
                   onClick={() => switchMode(method.key)}
                   aria-pressed={isActive}
                   className={cn(
-                    "rounded-md px-3 py-1.5 text-xs font-semibold transition-colors",
-                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B1D6F] focus-visible:ring-offset-2",
+                    "rounded-lg px-3 py-2 text-xs font-semibold transition-all",
+                    "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2",
                     isActive
                       ? "bg-white text-slate-900 shadow-sm"
                       : "text-slate-500 hover:text-slate-700",
@@ -221,7 +242,7 @@ export default function LoginForm({ next, initialError }: LoginFormProps) {
             })}
           </div>
 
-          <form onSubmit={handleSubmit} className="mt-5 space-y-4" noValidate>
+          <form onSubmit={handleSubmit} className="mt-6 space-y-4" noValidate>
             <div>
               <label
                 htmlFor="login-email"
@@ -231,7 +252,7 @@ export default function LoginForm({ next, initialError }: LoginFormProps) {
               </label>
               <div className="relative">
                 <Mail
-                  className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400"
+                  className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400"
                   aria-hidden="true"
                 />
                 <input
@@ -243,7 +264,7 @@ export default function LoginForm({ next, initialError }: LoginFormProps) {
                   value={email}
                   onChange={(event) => setEmail(event.target.value)}
                   placeholder="you@example.com"
-                  className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-900 shadow-sm outline-none transition-colors placeholder:text-slate-400 focus:border-[#4B1D6F] focus:ring-2 focus:ring-[#4B1D6F]/20"
+                  className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3.5 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-primary-400 focus:bg-white focus:ring-4 focus:ring-primary-500/10"
                 />
               </div>
             </div>
@@ -258,7 +279,7 @@ export default function LoginForm({ next, initialError }: LoginFormProps) {
                 </label>
                 <div className="relative">
                   <Lock
-                    className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-slate-400"
+                    className="pointer-events-none absolute left-3.5 top-1/2 size-4 -translate-y-1/2 text-slate-400"
                     aria-hidden="true"
                   />
                   <input
@@ -269,13 +290,19 @@ export default function LoginForm({ next, initialError }: LoginFormProps) {
                     minLength={6}
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
-                    placeholder={isSignUp ? "At least 6 characters" : "Your password"}
-                    className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-9 pr-3 text-sm text-slate-900 shadow-sm outline-none transition-colors placeholder:text-slate-400 focus:border-[#4B1D6F] focus:ring-2 focus:ring-[#4B1D6F]/20"
+                    placeholder={
+                      isSignUp ? "At least 6 characters" : "Your password"
+                    }
+                    className="w-full rounded-xl border border-slate-200 bg-slate-50 py-2.5 pl-10 pr-3.5 text-sm text-slate-900 outline-none transition-all placeholder:text-slate-400 focus:border-primary-400 focus:bg-white focus:ring-4 focus:ring-primary-500/10"
                   />
                 </div>
               </div>
             ) : (
-              <p className="text-[11px] leading-5 text-slate-500">
+              <p className="flex items-start gap-2 rounded-xl bg-primary-50/70 px-3 py-2.5 text-[11px] leading-5 text-primary-800">
+                <Sparkles
+                  className="mt-0.5 size-3.5 shrink-0 text-primary-500"
+                  aria-hidden="true"
+                />
                 No password needed. We&apos;ll email you a one-time link that
                 signs you in on this device.
               </p>
@@ -284,7 +311,7 @@ export default function LoginForm({ next, initialError }: LoginFormProps) {
             {error ? (
               <p
                 role="alert"
-                className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-xs leading-5 text-red-700"
+                className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-2.5 text-xs leading-5 text-red-700"
               >
                 {error}
               </p>
@@ -293,7 +320,7 @@ export default function LoginForm({ next, initialError }: LoginFormProps) {
             {notice ? (
               <p
                 role="status"
-                className="rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-xs leading-5 text-emerald-800"
+                className="rounded-xl border border-emerald-200 bg-emerald-50 px-3.5 py-2.5 text-xs leading-5 text-emerald-800"
               >
                 {notice}
               </p>
@@ -302,7 +329,7 @@ export default function LoginForm({ next, initialError }: LoginFormProps) {
             <button
               type="submit"
               disabled={isLoading}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-lg bg-[#4B1D6F] px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition-colors hover:bg-[#3d175b] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B1D6F] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-primary-600 to-primary-700 px-4 py-3 text-sm font-semibold text-white shadow-md shadow-primary-600/30 transition-all hover:from-primary-500 hover:to-primary-700 hover:shadow-lg hover:shadow-primary-600/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {isLoading ? (
                 <Loader2 className="size-4 animate-spin" aria-hidden="true" />
@@ -330,7 +357,7 @@ export default function LoginForm({ next, initialError }: LoginFormProps) {
                     setError(null);
                     setNotice(null);
                   }}
-                  className="font-semibold text-[#4B1D6F] underline-offset-2 hover:underline"
+                  className="font-semibold text-primary-700 underline-offset-2 hover:underline"
                 >
                   {isSignUp ? "Sign in" : "Create an account"}
                 </button>
@@ -348,12 +375,12 @@ export default function LoginForm({ next, initialError }: LoginFormProps) {
 
           <Link
             href="/exam/session"
-            className="inline-flex w-full items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
+            className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-all hover:border-slate-300 hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2"
           >
             Continue as guest
             <ArrowRight className="size-4" aria-hidden="true" />
           </Link>
-          <p className="mt-2 text-center text-[11px] leading-5 text-slate-500">
+          <p className="mt-2.5 text-center text-[11px] leading-5 text-slate-500">
             Guest attempts are graded instantly but are not saved to your
             account.
           </p>

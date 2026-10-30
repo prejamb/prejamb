@@ -151,7 +151,7 @@ async function ResultsList() {
 
   return (
     <div className="min-h-dvh bg-slate-100 text-slate-900">
-      <header className="bg-[#4B1D6F] text-white">
+      <header className="bg-gradient-to-br from-primary-800 via-primary-700 to-primary-900 text-white">
         <div className="mx-auto flex max-w-4xl flex-wrap items-end justify-between gap-3 px-4 py-6 sm:px-6">
           <div>
             <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-white/60">
@@ -204,7 +204,7 @@ async function ResultsList() {
 
         {rows.length === 0 ? (
           <div className="rounded-xl border border-dashed border-slate-300 bg-white px-6 py-10 text-center shadow-sm">
-            <div className="mx-auto grid size-12 place-items-center rounded-full bg-purple-50 text-[#4B1D6F]">
+            <div className="mx-auto grid size-12 place-items-center rounded-full bg-primary-50 text-primary-600">
               <History className="size-6" aria-hidden="true" />
             </div>
             <h2 className="mt-3 text-sm font-semibold text-slate-900">
@@ -216,7 +216,7 @@ async function ResultsList() {
             </p>
             <Link
               href="/exam/session"
-              className="mt-4 inline-flex items-center gap-1.5 rounded-md bg-[#4B1D6F] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#3d175b]"
+              className="mt-4 inline-flex items-center gap-1.5 rounded-xl bg-gradient-to-b from-primary-600 to-primary-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-primary-600/30 transition-all hover:from-primary-500 hover:to-primary-700"
             >
               Start practicing
               <ArrowRight className="size-4" aria-hidden="true" />
@@ -236,7 +236,7 @@ async function ResultsList() {
                 <li key={attempt.id}>
                   <Link
                     href={`/exam/results/${attempt.id}`}
-                    className="group flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-colors hover:border-purple-300 hover:bg-purple-50/30"
+                    className="group flex items-center gap-4 rounded-xl border border-slate-200 bg-white p-4 shadow-sm transition-colors hover:border-primary-300 hover:bg-primary-50/40"
                   >
                     <span
                       className={cn(
@@ -266,7 +266,7 @@ async function ResultsList() {
                     </span>
 
                     <ArrowRight
-                      className="size-4 shrink-0 text-slate-400 transition-colors group-hover:text-[#4B1D6F]"
+                      className="size-4 shrink-0 text-slate-400 transition-colors group-hover:text-primary-600"
                       aria-hidden="true"
                     />
                   </Link>
@@ -292,7 +292,7 @@ function StatCard({
   return (
     <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
       <dt className="flex items-center gap-1.5 text-[10px] font-semibold uppercase tracking-wide text-slate-500">
-        <span className="text-[#4B1D6F]">{icon}</span>
+        <span className="text-primary-600">{icon}</span>
         {label}
       </dt>
       <dd className="mt-1 text-2xl font-bold tabular-nums text-slate-900">
@@ -317,7 +317,7 @@ function ResultsSkeleton() {
       aria-busy="true"
       aria-label="Loading results"
     >
-      <div className="bg-[#4B1D6F] px-4 py-6 sm:px-6">
+      <div className="bg-gradient-to-br from-primary-800 via-primary-700 to-primary-900 px-4 py-6 sm:px-6">
         <div className="mx-auto max-w-4xl space-y-3">
           <div className="h-2 w-24 rounded bg-white/20" />
           <div className="h-5 w-40 rounded bg-white/30" />

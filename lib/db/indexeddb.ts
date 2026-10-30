@@ -137,9 +137,22 @@ async function clearStore(storeName: string): Promise<void> {
 /* Question sets                                                              */
 /* -------------------------------------------------------------------------- */
 
+export type SubjectRow = {
+  id: string;
+  name: string;
+  code: string;
+};
+
+export type TopicRow = {
+  id: string;
+  title: string;
+  subjectId: string;
+};
+
 export type CachedQuestionSet = {
   cacheKey: string;
   subject: { id: string; name: string; code: string };
+  topics: TopicRow[];
   /** Resolved, ordered, numbered questions exactly as they were presented. */
   questions: ExamQuestion[];
   fetchedAt: number;
@@ -168,6 +181,36 @@ export async function listCachedQuestionSets(): Promise<CachedQuestionSet[]> {
 
 export async function clearQuestionSetCache(): Promise<void> {
   await clearStore(STORE_QUESTION_SETS);
+}
+
+/* -------------------------------------------------------------------------- */
+/* Subject list                                                               */
+/* -------------------------------------------------------------------------- */
+
+export type CachedSubjects = {
+  cacheKey: "subjects";
+  subjects: SubjectRow[];
+  fetchedAt: number;
+};
+
+const SUBJECTS_CACHE_KEY = "subjects";
+
+/** Stores the full subject list so the offline fallback can resolve a default. */
+export async function cacheSubjects(subjects: SubjectRow[]): Promise<void> {
+  await putInStore(STORE_QUESTION_SETS, {
+    cacheKey: SUBJECTS_CACHE_KEY,
+    subjects,
+    fetchedAt: Date.now(),
+  });
+}
+
+export async function getCachedSubjects(): Promise<SubjectRow[]> {
+  const record = await getFromStore<CachedSubjects>(
+    STORE_QUESTION_SETS,
+    SUBJECTS_CACHE_KEY,
+  );
+
+  return record?.subjects ?? [];
 }
 
 /* -------------------------------------------------------------------------- */

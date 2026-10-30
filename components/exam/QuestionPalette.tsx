@@ -17,11 +17,11 @@ type QuestionStatus = "unanswered" | "answered" | "flagged";
 
 const STATUS_CLASS: Record<QuestionStatus, string> = {
   unanswered:
-    "border-slate-300 bg-slate-200 text-slate-700 hover:bg-slate-300",
+    "border-slate-200 bg-white text-slate-500 hover:border-slate-300 hover:bg-slate-50",
   answered:
-    "border-emerald-700 bg-emerald-600 text-white hover:bg-emerald-700",
+    "border-emerald-600 bg-emerald-500 text-white hover:bg-emerald-600 shadow-sm shadow-emerald-500/30",
   flagged:
-    "border-purple-700 bg-purple-600 text-white hover:bg-purple-700",
+    "border-amber-500 bg-amber-400 text-amber-950 hover:bg-amber-500 shadow-sm shadow-amber-500/30",
 };
 
 const STATUS_LABEL: Record<QuestionStatus, string> = {
@@ -54,7 +54,7 @@ export default function QuestionPalette({
     <section
       aria-label="Question palette"
       className={cn(
-        "rounded-xl border border-slate-200 bg-white p-4 shadow-sm",
+        "rounded-2xl border border-slate-200 bg-white p-4 shadow-card",
         className,
       )}
     >
@@ -62,12 +62,12 @@ export default function QuestionPalette({
         <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
           Question palette
         </h2>
-        <p className="text-[11px] font-medium tabular-nums text-slate-500">
+        <p className="text-[11px] font-semibold tabular-nums text-slate-500">
           {answeredCount}/{total} answered
         </p>
       </div>
 
-      <div className="mt-3 grid grid-cols-5 gap-2">
+      <div className="mt-3.5 grid grid-cols-5 gap-2">
         {questionIds.map((questionId, index) => {
           const status: QuestionStatus = flagged[questionId]
             ? "flagged"
@@ -85,20 +85,21 @@ export default function QuestionPalette({
               aria-current={isCurrent ? "step" : undefined}
               aria-label={`Question ${index + 1}, ${STATUS_LABEL[status]}`}
               className={cn(
-                "relative grid size-9 place-items-center rounded-md border text-xs font-semibold tabular-nums transition-colors",
-                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B1D6F] focus-visible:ring-offset-2",
+                "relative grid size-9 place-items-center rounded-lg border text-xs font-semibold tabular-nums transition-all",
+                "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2",
                 STATUS_CLASS[status],
-                isCurrent && "ring-2 ring-[#4B1D6F] ring-offset-2",
+                isCurrent &&
+                  "ring-2 ring-primary-600 ring-offset-2 ring-offset-white",
               )}
             >
               {index + 1}
 
-              {/* Flagged questions keep their purple state, but a dot shows
+              {/* Flagged questions keep their amber state, but a dot shows
                   they have also been answered. */}
               {status === "flagged" && isAnswered ? (
                 <span
                   aria-hidden="true"
-                  className="absolute -right-1 -top-1 size-2.5 rounded-full border border-white bg-emerald-400"
+                  className="absolute -right-1 -top-1 size-2.5 rounded-full border-2 border-white bg-emerald-500"
                 />
               ) : null}
             </button>
@@ -107,37 +108,47 @@ export default function QuestionPalette({
       </div>
 
       <dl className="mt-4 grid gap-1.5 border-t border-slate-100 pt-3 text-[11px] text-slate-600">
-        <div className="flex items-center gap-2">
-          <span
-            aria-hidden="true"
-            className="size-3.5 rounded border border-slate-300 bg-slate-200"
-          />
-          <dt>Unanswered</dt>
-          <dd className="ml-auto font-semibold tabular-nums text-slate-700">
-            {total - answeredCount}
-          </dd>
-        </div>
-        <div className="flex items-center gap-2">
-          <span
-            aria-hidden="true"
-            className="size-3.5 rounded border border-emerald-700 bg-emerald-600"
-          />
-          <dt>Answered</dt>
-          <dd className="ml-auto font-semibold tabular-nums text-emerald-700">
-            {answeredCount}
-          </dd>
-        </div>
-        <div className="flex items-center gap-2">
-          <span
-            aria-hidden="true"
-            className="size-3.5 rounded border border-purple-700 bg-purple-600"
-          />
-          <dt>Flagged</dt>
-          <dd className="ml-auto font-semibold tabular-nums text-purple-700">
-            {flaggedCount}
-          </dd>
-        </div>
+        <LegendRow
+          swatch="border border-slate-200 bg-white"
+          label="Unanswered"
+          value={total - answeredCount}
+          valueClass="text-slate-700"
+        />
+        <LegendRow
+          swatch="border border-emerald-600 bg-emerald-500"
+          label="Answered"
+          value={answeredCount}
+          valueClass="text-emerald-700"
+        />
+        <LegendRow
+          swatch="border border-amber-500 bg-amber-400"
+          label="Flagged"
+          value={flaggedCount}
+          valueClass="text-amber-700"
+        />
       </dl>
     </section>
+  );
+}
+
+function LegendRow({
+  swatch,
+  label,
+  value,
+  valueClass,
+}: {
+  swatch: string;
+  label: string;
+  value: number;
+  valueClass: string;
+}) {
+  return (
+    <div className="flex items-center gap-2">
+      <span aria-hidden="true" className={cn("size-3.5 rounded", swatch)} />
+      <dt>{label}</dt>
+      <dd className={cn("ml-auto font-semibold tabular-nums", valueClass)}>
+        {value}
+      </dd>
+    </div>
   );
 }

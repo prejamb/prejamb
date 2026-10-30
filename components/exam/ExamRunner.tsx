@@ -15,10 +15,8 @@ import Link from "next/link";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import {
-  cacheQuestionSet,
   clearExamProgress,
   enqueueAttempt,
-  getQuestionSetCacheKey,
   loadExamProgress,
   saveExamProgress,
   type QueuedAttempt,
@@ -162,22 +160,6 @@ export default function ExamRunner({
 
   const currentQuestion = questions[currentIndex];
   const unansweredCount = questions.length - answeredCount;
-
-  /* ---------------------------------------------------------------------- */
-  /* Cache the downloaded paper for offline reuse                          */
-  /* ---------------------------------------------------------------------- */
-  useEffect(() => {
-    if (questions.length === 0) {
-      return;
-    }
-
-    void cacheQuestionSet({
-      cacheKey: getQuestionSetCacheKey(subject.code),
-      subject,
-      questions,
-      fetchedAt: Date.now(),
-    });
-  }, [questions, subject]);
 
   /* ---------------------------------------------------------------------- */
   /* Restore or start the session                                           */
@@ -535,7 +517,7 @@ export default function ExamRunner({
 
   return (
     <div className="min-h-dvh bg-slate-100 text-slate-900">
-      <header className="sticky top-0 z-30 border-b border-white/10 bg-[#4B1D6F] text-white shadow-lg">
+      <header className="sticky top-16 z-30 border-b border-white/10 bg-gradient-to-br from-primary-800 via-primary-700 to-primary-900 text-white shadow-lg shadow-primary-950/40">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-4 gap-y-2 px-4 py-3 sm:px-6">
           <div className="min-w-0 flex-1">
             <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-white/60">
@@ -556,7 +538,7 @@ export default function ExamRunner({
           <button
             type="button"
             onClick={() => setConfirmOpen(true)}
-            className="inline-flex items-center justify-center rounded-md border border-white/25 bg-white/10 px-3.5 py-2 text-xs font-semibold text-white transition-colors hover:bg-white/20 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white sm:text-sm"
+            className="inline-flex items-center justify-center rounded-xl bg-white px-4 py-2 text-xs font-semibold text-primary-800 shadow-sm transition-all hover:bg-primary-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-primary-700 sm:text-sm"
           >
             Submit
           </button>
@@ -579,7 +561,7 @@ export default function ExamRunner({
                   href={`/login?next=${encodeURIComponent(
                     `/exam/session?subject=${subject.code}`,
                   )}`}
-                  className="ml-2 font-semibold text-[#4B1D6F] underline-offset-2 hover:underline"
+                  className="ml-2 font-semibold text-primary-700 underline-offset-2 hover:underline"
                 >
                   Sign in to save
                 </Link>
@@ -598,7 +580,7 @@ export default function ExamRunner({
               {answeredCount}
             </span>{" "}
             of {questions.length} &middot; Flagged{" "}
-            <span className="font-semibold text-purple-700">
+            <span className="font-semibold text-primary-700">
               {flaggedCount}
             </span>
           </p>
@@ -662,7 +644,7 @@ export default function ExamRunner({
           />
         </div>
 
-        <aside className="hidden lg:sticky lg:top-24 lg:block lg:self-start lg:space-y-3">
+        <aside className="hidden lg:sticky lg:top-32 lg:block lg:self-start lg:space-y-3">
           <QuestionPalette
             questionIds={questionIds}
             currentIndex={currentIndex}
@@ -671,7 +653,7 @@ export default function ExamRunner({
             onSelect={handlePaletteSelect}
           />
 
-          <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
+          <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-card">
             <h2 className="text-xs font-semibold uppercase tracking-wider text-slate-500">
               Exam rules
             </h2>
@@ -684,7 +666,7 @@ export default function ExamRunner({
             <button
               type="button"
               onClick={() => setConfirmOpen(true)}
-              className="mt-4 w-full rounded-md bg-[#0B7A3B] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#096430] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
+              className="mt-4 w-full rounded-xl bg-gradient-to-b from-emerald-600 to-emerald-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-600/30 transition-all hover:from-emerald-500 hover:to-emerald-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-500 focus-visible:ring-offset-2"
             >
               Submit exam
             </button>
@@ -699,7 +681,7 @@ export default function ExamRunner({
           aria-labelledby="submit-dialog-title"
           className="fixed inset-0 z-50 grid place-items-center bg-slate-950/60 p-4 backdrop-blur-sm"
         >
-          <div className="w-full max-w-md rounded-2xl bg-white p-6 shadow-2xl">
+          <div className="w-full max-w-md rounded-3xl bg-white p-6 shadow-2xl">
             <h2
               id="submit-dialog-title"
               className="text-base font-semibold text-slate-900"
@@ -733,7 +715,7 @@ export default function ExamRunner({
                 <dt className="text-[10px] uppercase tracking-wide text-slate-500">
                   Flagged
                 </dt>
-                <dd className="text-lg font-bold tabular-nums text-purple-700">
+                <dd className="text-lg font-bold tabular-nums text-primary-700">
                   {flaggedCount}
                 </dd>
               </div>
@@ -747,7 +729,7 @@ export default function ExamRunner({
               <button
                 type="button"
                 onClick={() => setConfirmOpen(false)}
-                className="flex-1 rounded-md border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
+                className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 transition-colors hover:bg-slate-50"
               >
                 Keep working
               </button>
@@ -755,7 +737,7 @@ export default function ExamRunner({
                 type="button"
                 onClick={() => void submitExam("manual")}
                 disabled={isSubmitting}
-                className="flex-1 rounded-md bg-[#0B7A3B] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#096430] disabled:opacity-60"
+                className="flex-1 rounded-xl bg-gradient-to-b from-emerald-600 to-emerald-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-600/30 transition-all hover:from-emerald-500 hover:to-emerald-700 disabled:opacity-60"
               >
                 Submit
               </button>
@@ -770,7 +752,7 @@ export default function ExamRunner({
             {isSubmitting ? (
               <>
                 <Loader2
-                  className="mx-auto size-8 animate-spin text-[#4B1D6F]"
+                  className="mx-auto size-8 animate-spin text-primary-600"
                   aria-hidden="true"
                 />
                 <h2 className="mt-3 text-base font-semibold text-slate-900">
@@ -795,7 +777,7 @@ export default function ExamRunner({
                 <button
                   type="button"
                   onClick={() => void submitExam("timeout")}
-                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-md bg-[#4B1D6F] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#3d175b]"
+                  className="mt-4 inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-primary-600 to-primary-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-primary-600/30 transition-all hover:from-primary-500 hover:to-primary-700"
                 >
                   <RotateCcw className="size-4" aria-hidden="true" />
                   Try submitting again
@@ -819,7 +801,7 @@ export function ExamSkeleton() {
       aria-busy="true"
       aria-label="Loading exam"
     >
-      <div className="bg-[#4B1D6F] px-4 py-3 sm:px-6">
+      <div className="bg-gradient-to-br from-primary-800 via-primary-700 to-primary-900 px-4 py-3 sm:px-6">
         <div className="mx-auto flex max-w-7xl items-center justify-between gap-4">
           <div className="space-y-2">
             <div className="h-2 w-28 rounded bg-white/20" />
@@ -881,7 +863,7 @@ function QueuedScreen({
 
   return (
     <div className="min-h-dvh bg-slate-100 text-slate-900">
-      <header className="bg-[#4B1D6F] px-4 py-6 text-white sm:px-6">
+      <header className="bg-gradient-to-br from-primary-800 via-primary-700 to-primary-900 px-4 py-6 text-white sm:px-6">
         <div className="mx-auto max-w-3xl">
           <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-white/60">
             PreJamb &middot; CBT Result
@@ -951,7 +933,7 @@ function QueuedScreen({
             isAuthenticated ? (
               <Link
                 href="/exam/results"
-                className="inline-flex items-center justify-center gap-2 rounded-md bg-[#0B7A3B] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#096430]"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-emerald-600 to-emerald-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-600/30 transition-all hover:from-emerald-500 hover:to-emerald-700"
               >
                 View my results
                 <ArrowRight className="size-4" aria-hidden="true" />
@@ -959,7 +941,7 @@ function QueuedScreen({
             ) : (
               <Link
                 href="/login"
-                className="inline-flex items-center justify-center gap-2 rounded-md bg-[#0B7A3B] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#096430]"
+                className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-emerald-600 to-emerald-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-600/30 transition-all hover:from-emerald-500 hover:to-emerald-700"
               >
                 Sign in to track results
                 <ArrowRight className="size-4" aria-hidden="true" />
@@ -970,7 +952,7 @@ function QueuedScreen({
               type="button"
               onClick={syncNow}
               disabled={syncing}
-              className="inline-flex items-center justify-center gap-2 rounded-md bg-[#4B1D6F] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#3d175b] disabled:cursor-not-allowed disabled:opacity-60"
+              className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-primary-600 to-primary-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-primary-600/30 transition-all hover:from-primary-500 hover:to-primary-700 disabled:cursor-not-allowed disabled:opacity-60"
             >
               {syncing ? (
                 <Loader2 className="size-4 animate-spin" aria-hidden="true" />
@@ -1043,7 +1025,7 @@ function ResultScreen({
 
   return (
     <div className="min-h-dvh bg-slate-100 text-slate-900">
-      <header className="bg-[#4B1D6F] px-4 py-6 text-white sm:px-6">
+      <header className="bg-gradient-to-br from-primary-800 via-primary-700 to-primary-900 px-4 py-6 text-white sm:px-6">
         <div className="mx-auto max-w-3xl">
           <p className="text-[10px] font-medium uppercase tracking-[0.2em] text-white/60">
             PreJamb &middot; CBT Result
@@ -1173,7 +1155,7 @@ function ResultScreen({
         {result.attemptId ? (
           <Link
             href={`/exam/results/${result.attemptId}`}
-            className="inline-flex items-center justify-center gap-2 rounded-md bg-[#4B1D6F] px-4 py-3 text-sm font-semibold text-white transition-colors hover:bg-[#3d175b]"
+            className="inline-flex items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-primary-600 to-primary-700 px-4 py-3 text-sm font-semibold text-white shadow-sm shadow-primary-600/30 transition-all hover:from-primary-500 hover:to-primary-700"
           >
             View full diagnostic report
             <ArrowRight className="size-4" aria-hidden="true" />
@@ -1190,7 +1172,7 @@ function ResultScreen({
           <button
             type="button"
             onClick={handleRetake}
-            className="inline-flex flex-1 items-center justify-center gap-2 rounded-md bg-[#0B7A3B] px-4 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-[#096430]"
+            className="inline-flex flex-1 items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-emerald-600 to-emerald-700 px-4 py-2.5 text-sm font-semibold text-white shadow-sm shadow-emerald-600/30 transition-all hover:from-emerald-500 hover:to-emerald-700"
           >
             <RotateCcw className="size-4" aria-hidden="true" />
             Take another exam

@@ -1,69 +1,115 @@
-import Image from "next/image";
+import {
+  ArrowRight,
+  BarChart3,
+  CheckCircle2,
+  GraduationCap,
+  Timer,
+  WifiOff,
+} from "lucide-react";
+import Link from "next/link";
+
+const features = [
+  {
+    icon: Timer,
+    title: "Real CBT conditions",
+    body: "Timed UTME papers with a question palette, flagging and instant scoring — exactly like the exam hall.",
+  },
+  {
+    icon: BarChart3,
+    title: "Topic-level diagnostics",
+    body: "See the exact topics costing you marks, with step-by-step explanations for every question.",
+  },
+  {
+    icon: WifiOff,
+    title: "Works offline",
+    body: "Install the app to practise and review results with no connection, then sync when you are back online.",
+  },
+];
 
 export default function Home() {
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert h-5 w-[100px]"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the{" "}
-            <code className="rounded bg-black/[.06] px-1.5 py-0.5 font-mono text-[0.9em] dark:bg-white/[.08]">
-              page.tsx
-            </code>{" "}
-            file.
+    <main className="bg-auth flex-1">
+      <section className="mx-auto max-w-6xl px-4 pt-14 pb-16 sm:px-6 sm:pt-20 lg:pt-24">
+        <div className="mx-auto max-w-3xl text-center">
+          <span className="inline-flex items-center gap-2 rounded-full border border-primary-200 bg-white/80 px-3 py-1 text-xs font-semibold text-primary-700 shadow-sm backdrop-blur">
+            <span className="size-1.5 rounded-full bg-emerald-500 animate-pulse-soft" />
+            Built for the JAMB UTME
+          </span>
+
+          <h1 className="mt-5 text-balance text-4xl font-bold tracking-tight text-slate-900 sm:text-5xl lg:text-6xl">
+            Practise smarter.
+            <span className="block bg-gradient-to-r from-primary-600 via-primary-500 to-primary-800 bg-clip-text text-transparent">
+              Walk into UTME ready.
+            </span>
           </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+
+          <p className="mx-auto mt-5 max-w-2xl text-pretty text-base leading-7 text-slate-600 sm:text-lg sm:leading-8">
+            Timed CBT practice with instant scoring and a diagnostic report that
+            shows precisely which topics to fix — online or offline.
+          </p>
+
+          <div className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
+            <Link
+              href="/exam/session"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl bg-gradient-to-b from-primary-600 to-primary-700 px-6 py-3 text-sm font-semibold text-white shadow-lg shadow-primary-600/30 transition-all hover:from-primary-500 hover:to-primary-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2 sm:w-auto"
             >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
+              Start a free practice
+              <ArrowRight className="size-4" aria-hidden="true" />
+            </Link>
+            <Link
+              href="/login"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-slate-300 bg-white px-6 py-3 text-sm font-semibold text-slate-700 shadow-sm transition-colors hover:bg-slate-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-slate-400 focus-visible:ring-offset-2 sm:w-auto"
             >
-              Learning
-            </a>{" "}
-            center.
+              Sign in to save progress
+            </Link>
+          </div>
+
+          <p className="mt-4 flex items-center justify-center gap-1.5 text-xs font-medium text-slate-500">
+            <CheckCircle2 className="size-3.5 text-emerald-500" aria-hidden="true" />
+            No account needed to start practising
           </p>
         </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert h-[14px] w-4"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={14}
-            />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+
+        <div className="mt-14 grid gap-4 sm:mt-16 sm:grid-cols-3 sm:gap-5">
+          {features.map(({ icon: Icon, title, body }) => (
+            <div
+              key={title}
+              className="rounded-2xl border border-slate-200 bg-white/80 p-5 shadow-card backdrop-blur-sm transition-shadow hover:shadow-card-lg"
+            >
+              <div className="grid size-10 place-items-center rounded-xl bg-primary-50 text-primary-700 ring-1 ring-inset ring-primary-100">
+                <Icon className="size-5" aria-hidden="true" />
+              </div>
+              <h2 className="mt-4 text-sm font-semibold text-slate-900">
+                {title}
+              </h2>
+              <p className="mt-1.5 text-sm leading-6 text-slate-600">{body}</p>
+            </div>
+          ))}
         </div>
-      </main>
-    </div>
+
+        <div className="mt-10 flex flex-col items-center justify-between gap-4 rounded-2xl border border-primary-100 bg-gradient-to-r from-primary-900 via-primary-800 to-primary-700 px-6 py-6 text-white shadow-glow sm:mt-12 sm:flex-row sm:px-8">
+          <div className="flex items-center gap-3 text-center sm:text-left">
+            <div className="hidden size-11 shrink-0 place-items-center rounded-xl bg-white/10 ring-1 ring-inset ring-white/15 sm:grid">
+              <GraduationCap className="size-5" aria-hidden="true" />
+            </div>
+            <div>
+              <p className="text-sm font-semibold">
+                Already practised? Review your diagnostic report.
+              </p>
+              <p className="mt-0.5 text-xs text-primary-100">
+                Track scores and weak topics across every attempt.
+              </p>
+            </div>
+          </div>
+          <Link
+            href="/exam/results"
+            className="inline-flex shrink-0 items-center justify-center gap-2 rounded-xl bg-white px-5 py-2.5 text-sm font-semibold text-primary-800 shadow-sm transition-transform hover:scale-[1.02] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-primary-800"
+          >
+            My results
+            <ArrowRight className="size-4" aria-hidden="true" />
+          </Link>
+        </div>
+      </section>
+    </main>
   );
 }

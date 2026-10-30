@@ -17,8 +17,8 @@ type QuestionCardProps = {
 };
 
 const NAV_BUTTON =
-  "inline-flex items-center justify-center gap-1.5 rounded-md px-4 py-2 text-sm font-semibold " +
-  "transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 " +
+  "inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-sm font-semibold " +
+  "transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 " +
   "disabled:cursor-not-allowed disabled:opacity-40";
 
 export default function QuestionCard({
@@ -37,21 +37,21 @@ export default function QuestionCard({
   return (
     <section
       aria-labelledby="question-heading"
-      className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm"
+      className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-card"
     >
-      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 bg-slate-50/80 px-4 py-3 sm:px-5">
+      <header className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 bg-slate-50/70 px-4 py-3 sm:px-6">
         <div className="flex flex-wrap items-center gap-2">
           <h2
             id="question-heading"
-            className="rounded-md bg-[#4B1D6F] px-2.5 py-1 text-xs font-semibold text-white"
+            className="inline-flex items-center rounded-lg bg-gradient-to-b from-primary-600 to-primary-700 px-3 py-1 text-xs font-semibold text-white shadow-sm shadow-primary-600/30"
           >
             Question {question.number} of {totalQuestions}
           </h2>
-          <span className="rounded-md bg-white px-2 py-1 text-[11px] font-medium text-slate-600 ring-1 ring-slate-200">
+          <span className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-600">
             {question.topicTitle}
           </span>
           {question.year ? (
-            <span className="rounded-md bg-white px-2 py-1 text-[11px] font-medium text-slate-500 ring-1 ring-slate-200">
+            <span className="rounded-lg border border-slate-200 bg-white px-2.5 py-1 text-[11px] font-medium text-slate-500">
               UTME {question.year}
             </span>
           ) : null}
@@ -62,17 +62,17 @@ export default function QuestionCard({
           onClick={onToggleFlag}
           aria-pressed={isFlagged}
           className={cn(
-            "inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-xs font-semibold transition-colors",
-            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#4B1D6F] focus-visible:ring-offset-2",
+            "inline-flex items-center gap-1.5 rounded-lg border px-2.5 py-1.5 text-xs font-semibold transition-all",
+            "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary-500 focus-visible:ring-offset-2",
             isFlagged
-              ? "border-purple-300 bg-purple-50 text-purple-700"
-              : "border-slate-200 bg-white text-slate-600 hover:bg-slate-100",
+              ? "border-amber-300 bg-amber-50 text-amber-700"
+              : "border-slate-200 bg-white text-slate-600 hover:border-slate-300 hover:bg-slate-50",
           )}
         >
           <Flag
             className={cn(
               "size-3.5",
-              isFlagged && "fill-purple-600 text-purple-600",
+              isFlagged && "fill-amber-500 text-amber-600",
             )}
             aria-hidden="true"
           />
@@ -80,12 +80,12 @@ export default function QuestionCard({
         </button>
       </header>
 
-      <div className="px-4 py-5 sm:px-5">
-        <p className="whitespace-pre-wrap text-[15px] leading-7 text-slate-900">
+      <div className="px-4 py-5 sm:px-6">
+        <p className="whitespace-pre-wrap text-[15px] font-medium leading-7 text-slate-800">
           {question.text}
         </p>
 
-        <fieldset className="mt-5">
+        <fieldset className="mt-6">
           <legend className="sr-only">
             Select one answer for question {question.number}
           </legend>
@@ -98,11 +98,11 @@ export default function QuestionCard({
                 <label
                   key={option.label}
                   className={cn(
-                    "group flex cursor-pointer items-start gap-3 rounded-lg border px-3.5 py-3 transition-colors",
-                    "focus-within:ring-2 focus-within:ring-[#4B1D6F] focus-within:ring-offset-1",
+                    "group flex cursor-pointer items-center gap-3.5 rounded-xl border px-4 py-3.5 transition-all",
+                    "focus-within:ring-2 focus-within:ring-primary-500 focus-within:ring-offset-2",
                     isSelected
-                      ? "border-[#4B1D6F] bg-[#4B1D6F]/5"
-                      : "border-slate-200 bg-white hover:border-slate-300 hover:bg-slate-50",
+                      ? "border-primary-500 bg-primary-50/50 ring-2 ring-primary-500/30"
+                      : "border-slate-200 bg-white hover:border-primary-200 hover:bg-primary-50/30",
                   )}
                 >
                   <input
@@ -116,15 +116,22 @@ export default function QuestionCard({
                   <span
                     aria-hidden="true"
                     className={cn(
-                      "mt-0.5 grid size-6 shrink-0 place-items-center rounded-full border text-[11px] font-bold",
+                      "grid size-7 shrink-0 place-items-center rounded-full border-2 text-xs font-bold transition-all",
                       isSelected
-                        ? "border-[#4B1D6F] bg-[#4B1D6F] text-white"
-                        : "border-slate-300 bg-white text-slate-600 group-hover:border-slate-400",
+                        ? "border-primary-600 bg-primary-600 text-white shadow-sm shadow-primary-600/40"
+                        : "border-slate-300 bg-white text-slate-500 group-hover:border-primary-300",
                     )}
                   >
                     {option.label}
                   </span>
-                  <span className="text-sm leading-6 text-slate-800">
+                  <span
+                    className={cn(
+                      "text-sm leading-6",
+                      isSelected
+                        ? "font-medium text-slate-900"
+                        : "text-slate-700",
+                    )}
+                  >
                     {option.text}
                   </span>
                 </label>
@@ -134,14 +141,14 @@ export default function QuestionCard({
         </fieldset>
       </div>
 
-      <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-200 bg-slate-50 px-4 py-3 sm:px-5">
+      <footer className="flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 bg-slate-50/70 px-4 py-3 sm:px-6">
         <button
           type="button"
           onClick={onPrevious}
           disabled={isFirst}
           className={cn(
             NAV_BUTTON,
-            "border border-slate-300 bg-white text-slate-700 hover:bg-slate-100 focus-visible:ring-slate-400",
+            "border border-slate-200 bg-white text-slate-700 hover:border-slate-300 hover:bg-slate-50 focus-visible:ring-slate-400",
           )}
         >
           <ChevronLeft className="size-4" aria-hidden="true" />
@@ -152,7 +159,7 @@ export default function QuestionCard({
           {selected ? (
             <>
               Selected:{" "}
-              <span className="font-bold text-[#4B1D6F]">{selected}</span>
+              <span className="font-bold text-primary-700">{selected}</span>
             </>
           ) : (
             "No option selected"
@@ -165,7 +172,7 @@ export default function QuestionCard({
           disabled={isLast}
           className={cn(
             NAV_BUTTON,
-            "bg-[#0B7A3B] text-white hover:bg-[#096430] focus-visible:ring-emerald-500",
+            "bg-gradient-to-b from-emerald-600 to-emerald-700 text-white shadow-sm shadow-emerald-600/30 hover:from-emerald-500 hover:to-emerald-700 focus-visible:ring-emerald-500",
           )}
         >
           Next
